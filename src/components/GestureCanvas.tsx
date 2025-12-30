@@ -4,19 +4,22 @@ import { classifyGesture, type PalmGesture } from '@/utils/gestures'
 
 interface Props {
   onGesture: (g: PalmGesture) => void
+  onGestureFrame?: (g: PalmGesture, confidence: number) => void
   throttleMs?: number
   minConfidence?: number
 }
+
 
 const solutionsPath = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240'
 
 const GestureCanvas: React.FC<Props> = ({
   onGesture,
+  onGestureFrame,
   throttleMs = 120,
   minConfidence = 0.8
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [lastTime, setLastTime] = useState(0)
+  const lastTimeRef = useRef(0)
   const [stableGesture, setStableGesture] = useState<PalmGesture>('NONE')
   const stableSinceRef = useRef<number>(0)
   const rafRef = useRef<number | null>(null)
@@ -47,10 +50,10 @@ const GestureCanvas: React.FC<Props> = ({
         minTrackingConfidence: 0.6,
         modelComplexity: 1
       })
-      hands.onResults((results) => {
+            hands.onResults((results) => {
         const now = performance.now()
-        if (now - lastTime < throttleMs) return
-        setLastTime(now)
+        if (now - lastTimeRef.current < throttleMs) return
+        lastTimeRef.current = now
 
         const landmarks = (results.multiHandLandmarks?.[0] || []) as NormalizedLandmark[]
         if (!landmarks.length) {
@@ -60,7 +63,10 @@ const GestureCanvas: React.FC<Props> = ({
         }
 
         const res = classifyGesture(landmarks)
-        // Cheap stability heuristic
+        onGestureFrame?.(res.gesture, res.confidence)
+
+        
+
         if (res.confidence >= minConfidence) {
           if (stableGesture !== res.gesture) {
             setStableGesture(res.gesture)
@@ -69,12 +75,11 @@ const GestureCanvas: React.FC<Props> = ({
             const stableFor = now - stableSinceRef.current
             if (stableFor > 250) {
               onGesture(res.gesture)
-              // prevent repeated fires
-              stableSinceRef.current = now + 1000
             }
           }
         }
       })
+
 
       // Frame loop
       const tick = async () => {
@@ -96,7 +101,7 @@ const GestureCanvas: React.FC<Props> = ({
       handsRef.current?.close()
       if (stream) stream.getTracks().forEach((t) => t.stop())
     }
-  }, [onGesture, minConfidence, throttleMs, stableGesture, lastTime])
+  }, [onGesture, minConfidence, throttleMs, stableGesture])
 
   return (
     <div className="w-full">

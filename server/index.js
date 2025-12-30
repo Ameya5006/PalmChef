@@ -1,60 +1,98 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { z } from "zod";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // Allow large text payloads
+app.use(express.json({ limit: "10mb" }));
 
-// Initialize Gemini
+// --------------------
+// Gemini Init
+// --------------------
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  generationConfig: {
+    temperature: 0.2,
+    maxOutputTokens: 2048
+  }
+});
 
-app.post('/api/parse-recipe', async (req, res) => {
+// --------------------
+// Strict Schema
+// --------------------
+const StepSchema = z.object({
+  text: z.string().min(5),
+  seconds: z.number().int().positive().optional()
+});
+
+const StepsSchema = z.array(StepSchema).min(1);
+
+// --------------------
+// API Route
+// --------------------
+app.post("/api/parse-recipe", async (req, res) => {
   try {
     const { text } = req.body;
-    
-    if (!text) {
-      return res.status(400).json({ error: 'No text provided' });
+
+    if (!text || typeof text !== "string") {
+      return res.status(400).json({ error: "Text is required" });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
     const prompt = `
-      You are a specialized sous-chef AI. 
-      Extract the cooking instructions from the following text into a clean, sequential list of steps.
-      
-      Rules:
-      1. Ignore intro fluff, author stories, or nutritional info.
-      2. If a step has a specific time duration (e.g., "bake for 15 mins"), extract it in seconds.
-      3. Return ONLY a JSON array of strings (for simple steps) or objects if there is a timer.
-      
-      Format your response as a pure JSON array of strings. Example: ["Preheat oven to 350F", "Mix eggs and flour", "Bake for 20 mins"]
-      
-      Text to parse:
-      ${text}
-    `;
+You are a cooking assistant AI.
+
+TASK:
+Extract ONLY the actual cooking steps.
+
+RULES (STRICT):
+- Ignore intros, stories, nutrition, ads.
+- Each step must be ONE clear cooking action.
+- Detect time durations and convert to SECONDS.
+- Output ONLY valid JSON.
+- Do NOT include markdown or explanation.
+
+FORMAT (STRICT JSON ARRAY):
+[
+  { "text": "Step description", "seconds"?: number }
+]
+
+TIME EXAMPLES:
+- "15 minutes" → 900
+- "1 hour 30 minutes" → 5400
+- "overnight" → 28800
+
+TEXT:
+"""
+${text.slice(0, 12000)}
+"""
+`;
 
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const textResponse = response.text();
-    
-    // Clean up the markdown JSON block if Gemini adds it
-    const cleanJson = textResponse.replace(/```json|```/g, '').trim();
-    const steps = JSON.parse(cleanJson);
+    const raw = result.response.text().replace(/```json|```/g, "").trim();
 
-    res.json({ steps });
-  } catch (error) {
-    console.error('AI Parsing Error:', error);
-    res.status(500).json({ error: 'Failed to parse recipe with AI' });
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return res.status(422).json({ error: "Invalid JSON from AI" });
+    }
+
+    const validatedSteps = StepsSchema.parse(parsed);
+    return res.json({ steps: validatedSteps });
+
+  } catch (err) {
+    console.error("AI Parsing Error:", err);
+    return res.status(500).json({ error: "Failed to parse recipe" });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`PalmChef Backend running on http://localhost:${PORT}`);
+  console.log(`PalmChef Backend running at http://localhost:${PORT}`);
 });

@@ -87,3 +87,28 @@ export function classifyGesture(landmarks: NormalizedLandmark[]): GestureResult 
 
   return { gesture, confidence, stableFor: 0, landmarks }
 }
+
+export type GestureName = "PALM" | "FIST" | "VICTORY" | "THUMBS_UP" | "NONE";
+
+export function createGestureGate(stableMs = 450, cooldownMs = 900) {
+  let lastGesture: GestureName = "NONE";
+  let stableSince = 0;
+  let cooldownUntil = 0;
+
+  return function gate(now: number, g: GestureName): GestureName | null {
+    if (now < cooldownUntil) return null;
+
+    if (g !== lastGesture) {
+      lastGesture = g;
+      stableSince = now;
+      return null;
+    }
+
+    if (g !== "NONE" && now - stableSince >= stableMs) {
+      cooldownUntil = now + cooldownMs;
+      return g;
+    }
+
+    return null;
+  };
+}

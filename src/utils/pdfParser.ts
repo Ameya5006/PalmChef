@@ -1,37 +1,68 @@
-import * as pdfjsLib from 'pdfjs-dist'
-// ✅ Import the actual worker as a URL so Vite bundles it
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url'
 
-// ✅ Tell PDF.js to use this local worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
+import * as pdfjsLib from "pdfjs-dist";
 
-async function extractTextFromPage(page: any): Promise<string> {
-  const content = await page.getTextContent()
-  const strings = content.items.map((item: any) => item.str)
-  return strings.join(' ')
+// ✅ pdfjs-dist v5 worker setup (official & TS-safe)
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
+
+
+export async function extractPdfText(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
+
+  let text = ""
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    text += content.items.map((i: any) => i.str).join(" ") + "\n\n"
+  }
+
+  return text.trim()
 }
 
-export async function parsePdfToSteps(file: File): Promise<string[]> {
-  try {
-    const arrayBuffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+export function splitIntoSteps(raw: string): string[] {
+  const cleaned = raw
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
 
-    let text = ''
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i)
-      text += '\n' + (await extractTextFromPage(page))
-    }
+  const parts = cleaned
+    .split(/\n\s*\n/g)
+    .map(s => s.trim())
+    .filter(Boolean)
 
-    // Split into recipe-like steps
-    const steps = text
-      .split(/\n|\r|\d+\.\s+|Step\s+\d+:/gi)
+  if (parts.length < 3) {
+    return cleaned
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9])/g)
       .map(s => s.trim())
-      .filter(Boolean)
-
-    if (steps.length === 0) throw new Error('No text found in PDF.')
-    return steps
-  } catch (err) {
-    console.error('Failed to parse PDF:', err)
-    throw new Error('Failed to parse PDF. Please ensure it contains selectable text.')
+      .filter(s => s.length > 12)
   }
+
+  return parts
+}
+
+export function parseDurationToSeconds(text: string): number | null {
+  const t = text.toLowerCase()
+  const re =
+    /(\d+)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)\b/g
+
+  let total = 0
+  let found = false
+
+  for (const m of t.matchAll(re)) {
+    found = true
+    const n = Number(m[1])
+    const u = m[2]
+    if (["h", "hr", "hrs", "hour", "hours"].includes(u)) total += n * 3600
+    else if (["m", "min", "mins", "minute", "minutes"].includes(u)) total += n * 60
+    else total += n
+  }
+
+  if (found && total > 0) return total
+  if (/\bovernight\b/.test(t)) return 8 * 3600
+  return null
 }
