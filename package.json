@@ -13,7 +13,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@mediapipe/hands": "^0.4.1675469240",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
     "framer-motion": "^11.2.6",
     "lucide-react": "^0.460.0",
     "pdfjs-dist": "^4.6.82",
@@ -33,6 +37,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.13.0",
     "jsdom": "^25.0.1",
+    "nodemon": "^3.1.11",
     "postcss": "^8.4.47",
     "prettier": "^3.3.3",
     "tailwindcss": "^3.4.13",
