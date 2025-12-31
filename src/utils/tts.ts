@@ -1,60 +1,34 @@
-let utterance: SpeechSynthesisUtterance | null = null;
+let currentUtterance: SpeechSynthesisUtterance | null = null
 
-type SpeakOptions = {
-  rate?: number;
-  pitch?: number;
-};
-let currentUtterance: SpeechSynthesisUtterance | null = null;
+export type SpeakOptions = {
+  rate?: number
+  pitch?: number
+  voice?: SpeechSynthesisVoice | null
+}
 
-export function speakText(
-  text: string,
-  options?: {
-    rate?: number;
-    pitch?: number;
-    voice?: SpeechSynthesisVoice | null;
+export function speakText(text: string, options?: SpeakOptions) {
+  if (!('speechSynthesis' in window)) {
+    console.warn('TTS not supported in this browser')
+    return
   }
-) {
-  if (!("speechSynthesis" in window)) return;
 
-  // Stop anything already speaking
-  window.speechSynthesis.cancel();
+  stopSpeech()
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = options?.rate ?? 1;
-  utterance.pitch = options?.pitch ?? 1;
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.rate = options?.rate ?? 1
+  utterance.pitch = options?.pitch ?? 1
 
   if (options?.voice) {
-    utterance.voice = options.voice;
+    utterance.voice = options.voice
   }
 
-  currentUtterance = utterance;
-  window.speechSynthesis.speak(utterance);
+  currentUtterance = utterance
+  window.speechSynthesis.speak(utterance)
 }
 
 export function stopSpeech() {
-  if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  currentUtterance = null;
-}
+  if (!('speechSynthesis' in window)) return
 
-export function speak(text: string, options?: SpeakOptions) {
-  if (!("speechSynthesis" in window)) {
-    console.warn("TTS not supported in this browser");
-    return;
-  }
-
-  stop();
-
-  utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = options?.rate ?? 1;
-  utterance.pitch = options?.pitch ?? 1;
-
-  window.speechSynthesis.speak(utterance);
-}
-
-export function stop() {
-  if (!("speechSynthesis" in window)) return;
-
-  window.speechSynthesis.cancel();
-  utterance = null;
+  window.speechSynthesis.cancel()
+  currentUtterance = null
 }

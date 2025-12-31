@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route,Navigate, useLocation } from 'react-router-dom'
 import Home from '@/pages/Home'
 import Recipes from '@/pages/Recipes'
 import Assistant from '@/pages/Assistant'
@@ -12,14 +12,18 @@ const RoutesConfig: React.FC = () => {
   const location = useLocation()
   return (
     <PageTransition>
-      <Routes location={location}>
-        <Route path="/" element={<Home />} />
-        <Route path="/recipes" element={<Recipes />} />
-        <Route path="/assistant/:id" element={<Assistant />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+
+
+<Routes location={location}>
+  <Route path="/" element={<Home />} />
+  <Route path="/recipes" element={<Recipes />} />
+  <Route path="/assistant/:id" element={<Assistant />} />
+  <Route path="/assistant" element={<Navigate to="/recipes" replace />} />
+  <Route path="/about" element={<About />} />
+  <Route path="/privacy" element={<Privacy />} />
+  <Route path="*" element={<NotFound />} />
+</Routes>
+
     </PageTransition>
   )
 }
