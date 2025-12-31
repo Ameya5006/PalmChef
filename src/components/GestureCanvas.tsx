@@ -9,8 +9,11 @@ interface Props {
   minConfidence?: number
 }
 
+const solutionsPath =
+  'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240'
 
-const solutionsPath = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240'
+const STABLE_MS = 300
+const COOLDOWN_MS = 900
 
 const GestureCanvas: React.FC<Props> = ({
   onGesture,
@@ -19,9 +22,12 @@ const GestureCanvas: React.FC<Props> = ({
   minConfidence = 0.8
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const lastTimeRef = useRef(0)
-  const [stableGesture, setStableGesture] = useState<PalmGesture>('NONE')
-  const stableSinceRef = useRef<number>(0)
+
+  const lastFrameRef = useRef(0)
+  const stableGestureRef = useRef<PalmGesture>('NONE')
+  const stableSinceRef = useRef(0)
+  const cooldownUntilRef = useRef(0)
+
   const rafRef = useRef<number | null>(null)
   const handsRef = useRef<Hands | null>(null)
 
@@ -34,30 +40,38 @@ const GestureCanvas: React.FC<Props> = ({
         console.warn('Webcam not supported')
         return
       }
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-      if (!mounted) return
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' }
+      })
+
+      if (!mounted || !videoRef.current) return
+
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
 
       const hands = new Hands({
         locateFile: (file) => `${solutionsPath}/${file}`
       })
+
       hands.setOptions({
         maxNumHands: 1,
         minDetectionConfidence: 0.6,
         minTrackingConfidence: 0.6,
         modelComplexity: 1
       })
-            hands.onResults((results) => {
-        const now = performance.now()
-        if (now - lastTimeRef.current < throttleMs) return
-        lastTimeRef.current = now
 
-        const landmarks = (results.multiHandLandmarks?.[0] || []) as NormalizedLandmark[]
-        if (!landmarks.length) {
-          setStableGesture('NONE')
+      hands.onResults((results) => {
+        const now = performance.now()
+        if (now - lastFrameRef.current < throttleMs) return
+        lastFrameRef.current = now
+
+        const landmarks = results.multiHandLandmarks?.[0] as
+          | NormalizedLandmark[]
+          | undefined
+
+        if (!landmarks || landmarks.length === 0) {
+          stableGestureRef.current = 'NONE'
           stableSinceRef.current = now
           return
         }
@@ -65,30 +79,28 @@ const GestureCanvas: React.FC<Props> = ({
         const res = classifyGesture(landmarks)
         onGestureFrame?.(res.gesture, res.confidence)
 
-        
+        if (res.confidence < minConfidence) return
+        if (now < cooldownUntilRef.current) return
 
-        if (res.confidence >= minConfidence) {
-          if (stableGesture !== res.gesture) {
-            setStableGesture(res.gesture)
-            stableSinceRef.current = now
-          } else {
-            const stableFor = now - stableSinceRef.current
-            if (stableFor > 250) {
-              onGesture(res.gesture)
-            }
-          }
+        if (res.gesture !== stableGestureRef.current) {
+          stableGestureRef.current = res.gesture
+          stableSinceRef.current = now
+          return
+        }
+
+        if (now - stableSinceRef.current >= STABLE_MS) {
+          onGesture(res.gesture)
+          cooldownUntilRef.current = now + COOLDOWN_MS
+          stableGestureRef.current = 'NONE'
         }
       })
 
-
-      // Frame loop
       const tick = async () => {
-        if (!mounted) return
-        if (videoRef.current && hands) {
-          await hands.send({ image: videoRef.current })
-        }
+        if (!mounted || !videoRef.current || !hands) return
+        await hands.send({ image: videoRef.current })
         rafRef.current = requestAnimationFrame(tick)
       }
+
       tick()
       handsRef.current = hands
     }
@@ -101,7 +113,7 @@ const GestureCanvas: React.FC<Props> = ({
       handsRef.current?.close()
       if (stream) stream.getTracks().forEach((t) => t.stop())
     }
-  }, [onGesture, minConfidence, throttleMs, stableGesture])
+  }, [onGesture, onGestureFrame, throttleMs, minConfidence])
 
   return (
     <div className="w-full">

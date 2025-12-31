@@ -1,12 +1,11 @@
 
 import * as pdfjsLib from "pdfjs-dist";
 
-// ✅ pdfjs-dist v5 worker setup (official & TS-safe)
+// ✅ Vite-safe, pdfjs v5-compatible worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
-
 
 export async function extractPdfText(file: File): Promise<string> {
   const buffer = await file.arrayBuffer()
