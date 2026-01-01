@@ -23,10 +23,12 @@ const Assistant: React.FC = () => {
   const {
     currentRecipeId,
     currentStep,
+    timerActive,
     nextStep,
     prevStep,
     toggleTimer,
-    setRecipe
+    setRecipe,
+    setTimerActive
   } = useSessionStore();
 
   useEffect(() => {
@@ -66,11 +68,12 @@ const Assistant: React.FC = () => {
   useEffect(() => {
     if (!step) return;
     stopSpeech();
+    setTimerActive(false);
     speakText(step.text, {
       rate: voiceRate,
       pitch: voicePitch
     });
-  }, [step, voiceRate, voicePitch]);
+  }, [step, voiceRate, voicePitch, setTimerActive]);
 
   // -----------------------------
   // Gesture → action mapping
@@ -124,32 +127,86 @@ const Assistant: React.FC = () => {
   // UI
   // -----------------------------
   return (
-    <div className="relative flex flex-col h-full p-6 gap-6">
-      <GestureCanvas
-        onGesture={handleGesture}
-        onGestureFrame={(g, c) => {
-          setHudGesture(g);
-          setHudConfidence(c);
-        }}
-      />
+    <div className="relative flex flex-col gap-6 p-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px),1fr]">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Live camera
+            </h2>
+            <span className="text-xs text-slate-400">Best in good lighting</span>
+          </div>
+          <div className="relative">
+            <GestureCanvas
+              onGesture={handleGesture}
+              onGestureFrame={(g, c) => {
+                setHudGesture(g);
+                setHudConfidence(c);
+              }}
+              className="aspect-video max-h-[280px] sm:max-h-[320px]"
+            />
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Gesture status
+              </p>
+              <span className="text-xs text-slate-400">Live feedback</span>
+            </div>
+            <div className="mt-3">
+              <GestureHUD
+                gesture={hudGesture}
+                confidence={hudConfidence}
+                placement="inline"
+                className="max-w-full"
+              />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              Gesture shortcuts
+            </p>
+            <div className="mt-3 grid gap-3 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                ✋ Next step
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                ✊ Previous step
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                ✌️ Repeat narration
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                👍 Start/Pause timer
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+            Keep your palm centered and about 2 feet from the camera for
+            reliable detection.
+          </div>
+        </div>
 
-      <GestureHUD gesture={hudGesture} confidence={hudConfidence} />
+        <div className="flex flex-col items-center justify-center text-center">
+          <p className="text-sm text-slate-500 mb-2">
+            Step {currentStep + 1} of {recipe.steps.length}
+          </p>
 
-      <div className="flex-1 flex flex-col justify-center items-center text-center">
-        <p className="text-sm text-slate-500 mb-2">
-          Step {currentStep + 1} of {recipe.steps.length}
-        </p>
+          <div className="text-2xl md:text-3xl font-medium max-w-3xl">
+            {step.text}
+          </div>
 
-        <div className="text-2xl md:text-3xl font-medium max-w-3xl">
-          {step.text}
+          {step.timer?.seconds && (
+            <div className="mt-6 w-full max-w-md">
+              <TimerDisplay initialSeconds={step.timer.seconds} />
+            </div>
+          )}
+
+          <div className="mt-6 w-full max-w-md">
+            <TTSControls currentText={step.text} />
+          </div>
         </div>
       </div>
-
-      {step.timer?.seconds && (
-        <TimerDisplay initialSeconds={step.timer.seconds} />
-      )}
-
-      <TTSControls currentText={step.text} />
     </div>
   );
 };

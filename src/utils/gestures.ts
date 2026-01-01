@@ -48,7 +48,6 @@ export function classifyGesture(
     pinky: pinky > 0.9
   };
 
-  const extendedCount = Object.values(extended).filter(Boolean).length;
 
   // 👍 TIMER
   if (
@@ -73,13 +72,19 @@ export function classifyGesture(
   }
 
   // ✊ PREV
-  if (extendedCount <= 1) {
+   if (
+    !extended.thumb &&
+    !extended.index &&
+    !extended.middle &&
+    !extended.ring &&
+    !extended.pinky
+  ) {
     return { gesture: "PREV", confidence: 0.85 };
   }
 
   // ✋ NEXT
-  if (extendedCount >= 4) {
-    return { gesture: "NEXT", confidence: 0.85 };
+  if (extended.index && extended.middle && extended.ring && extended.pinky) {
+        return { gesture: "NEXT", confidence: 0.85 };
   }
 
   return { gesture: "NONE", confidence: 0.3 };

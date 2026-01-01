@@ -3,11 +3,16 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { connectDatabase } from "./db.js";
+import { User } from "./models/User.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || "change-me";
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
@@ -33,7 +38,16 @@ const StepSchema = z.object({
 });
 
 const StepsSchema = z.array(StepSchema).min(1);
+const AuthSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8)
+});
 
+function createToken(user) {
+  return jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, {
+    expiresIn: "7d"
+  });
+}
 // --------------------
 // API Route
 // --------------------
@@ -93,6 +107,75 @@ ${text.slice(0, 12000)}
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`PalmChef Backend running at http://localhost:${PORT}`);
+app.post("/api/signup", async (req, res) => {
+  try {
+    const payload = AuthSchema.parse(req.body);
+    const existingUser = await User.findOne({ email: payload.email });
+
+    if (existingUser) {
+      return res.status(409).json({ error: "Email already registered" });
+    }
+
+    const passwordHash = await bcrypt.hash(payload.password, 12);
+    const user = await User.create({
+      email: payload.email,
+      passwordHash
+    });
+
+    return res.status(201).json({
+      token: createToken(user),
+      user: { id: user._id, email: user.email }
+    });
+  } catch (err) {
+    console.error("Signup Error:", err);
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors });
+    }
+    return res.status(500).json({ error: "Failed to sign up" });
+  }
 });
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const payload = AuthSchema.parse(req.body);
+    const user = await User.findOne({ email: payload.email });
+
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      payload.password,
+      user.passwordHash
+    );
+
+    if (!passwordMatches) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    return res.json({
+      token: createToken(user),
+      user: { id: user._id, email: user.email }
+    });
+  } catch (err) {
+    console.error("Login Error:", err);
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors });
+    }
+    return res.status(500).json({ error: "Failed to log in" });
+  }
+});
+
+async function startServer() {
+  try {
+    await connectDatabase();
+    app.listen(PORT, () => {
+      console.log(`PalmChef Backend running at http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error("Database connection failed:", err);
+    process.exit(1);
+  }
+}
+
+startServer();

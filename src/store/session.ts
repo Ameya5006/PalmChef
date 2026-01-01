@@ -9,6 +9,7 @@ interface SessionState {
   nextStep: () => void
   prevStep: () => void
   setStep: (i: number) => void
+  setTimerActive: (active: boolean) => void
   toggleTimer: () => void
 }
 
@@ -25,6 +26,7 @@ export const useSessionStore = create<SessionState>()(
       prevStep: () =>
         set((s) => ({ currentStep: Math.max(s.currentStep - 1, 0) })),
       setStep: (i) => set({ currentStep: i }),
+      setTimerActive: (active) => set({ timerActive: active }),
       toggleTimer: () => set((s) => ({ timerActive: !s.timerActive }))
     }),
     { name: 'palmchef-session' }

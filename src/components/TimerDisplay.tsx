@@ -2,21 +2,31 @@ import React, { useEffect, useRef, useState } from 'react'
 
 interface Props {
   initialSeconds?: number
-  externalToggle?: number // change this value to toggle start/pause from outside
+  isRunning?: boolean
+  onRunningChange?: (running: boolean) => void
 }
 
-const TimerDisplay: React.FC<Props> = ({ initialSeconds = 0, externalToggle }) => {
+const TimerDisplay: React.FC<Props> = ({
+  initialSeconds = 0,
+  isRunning,
+  onRunningChange
+}) => {
   const [seconds, setSeconds] = useState(initialSeconds)
-  const [running, setRunning] = useState(false)
+  const [localRunning, setLocalRunning] = useState(false)
   const intervalRef = useRef<number | null>(null)
-  const lastToggleRef = useRef<number | undefined>(externalToggle)
+  const running = isRunning ?? localRunning
 
   useEffect(() => {
-    if (externalToggle !== undefined && externalToggle !== lastToggleRef.current) {
-      setRunning((r) => !r)
-      lastToggleRef.current = externalToggle
+    setSeconds(initialSeconds)
+    setLocalRunning(false)
+    onRunningChange?.(false)
+  }, [initialSeconds, onRunningChange])
+
+  useEffect(() => {
+    if (isRunning !== undefined) {
+      setLocalRunning(isRunning)
     }
-  }, [externalToggle])
+  }, [isRunning])
 
   useEffect(() => {
     if (running) {
@@ -33,8 +43,14 @@ const TimerDisplay: React.FC<Props> = ({ initialSeconds = 0, externalToggle }) =
   }, [running])
 
   const reset = () => setSeconds(initialSeconds)
-  const start = () => setRunning(true)
-  const pause = () => setRunning(false)
+  const start = () => {
+    if (isRunning === undefined) setLocalRunning(true)
+    onRunningChange?.(true)
+  }
+  const pause = () => {
+    if (isRunning === undefined) setLocalRunning(false)
+    onRunningChange?.(false)
+  }
 
   const m = Math.floor(seconds / 60)
   const s = seconds % 60

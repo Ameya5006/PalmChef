@@ -14,13 +14,14 @@ const NavBar: React.FC = () => {
     }`
 
   return (
-    <header className="bg-slate-100 dark:bg-slate-900 shadow-sm sticky top-0 z-50">
-      <nav className="container mx-auto flex items-center justify-between px-4 py-3">
+        <header className="bg-slate-100/80 dark:bg-slate-900/80 shadow-sm sticky top-0 z-50 backdrop-blur">
+      <nav className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <Link to="/" className="flex items-center gap-2 text-xl font-semibold">
-          <img src="/logo.svg" alt="PalmChef" className="h-8 w-8" />
+          <img src="/logo.png" alt="PalmChef logo" className="h-12 w-auto" />
+
           <span>PalmChef</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <NavLink to="/" className={linkClasses}>
             Home
           </NavLink>
@@ -33,9 +34,18 @@ const NavBar: React.FC = () => {
           <NavLink to="/privacy" className={linkClasses}>
             Privacy
           </NavLink>
+                    <NavLink to="/auth" className={linkClasses}>
+            Sign in
+          </NavLink>
+          <Link
+            to="/recipes"
+            className="ml-1 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+          >
+            Launch Assistant
+          </Link>
           <button
             onClick={toggleTheme}
-            className="ml-3 rounded-full p-2 hover:bg-slate-200 dark:hover:bg-slate-800"
+            className="rounded-full p-2 hover:bg-slate-200 dark:hover:bg-slate-800"
             title="Toggle theme"
           >
             {theme === 'light' ? (

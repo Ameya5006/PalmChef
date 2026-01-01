@@ -4,6 +4,8 @@ import type { PalmGesture } from "@/utils/gestures"
 interface Props {
   gesture: PalmGesture
   confidence: number
+  className?: string
+  placement?: 'overlay' | 'inline'
 }
 
 const labels: Record<PalmGesture, string> = {
@@ -14,14 +16,15 @@ const labels: Record<PalmGesture, string> = {
   NONE: "No Hand"
 }
 
-const GestureHUD: React.FC<Props> = ({ gesture, confidence }) => {
+const GestureHUD: React.FC<Props> = ({ gesture, confidence , className ,  placement = 'overlay'}) => {
   const pct = Math.round(confidence * 100)
-  const locked = confidence >= 0.8 && gesture !== "NONE"
-
+  const locked = confidence >= 0.88 && gesture !== "NONE"
+  const positionClass =
+    placement === 'inline' ? 'relative w-full' : 'absolute z-50'
   return (
     <div className="absolute top-4 right-4 z-50">
       <div
-        className={`rounded-xl px-4 py-3 text-sm shadow-lg backdrop-blur
+        className={`${positionClass} ${placement === 'overlay' ? className ?? 'top-4 right-4' : className ?? ''} rounded-xl px-4 py-3 text-sm shadow-lg backdrop-blur
           ${locked ? "bg-green-500/90 text-white" : "bg-slate-800/80 text-white"}
         `}
       >
