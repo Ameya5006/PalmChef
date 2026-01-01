@@ -11,16 +11,69 @@ const Recipes: React.FC = () => {
   const navigate = useNavigate()
 
   return (
-    <div className="space-y-6">
-      <AddRecipeForm />
+    <div className="space-y-8">
+      <header className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Recipe Library
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold">
+              Build your hands-free cooking lineup.
+            </h1>
+            <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
+              Import a recipe, let PalmChef detect steps and timers, then launch
+              the assistant to cook without touching your screen.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 px-6 py-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-200">
+            <p className="font-semibold text-slate-900 dark:text-white">
+              Library snapshot
+            </p>
+            <p className="mt-2">Recipes stored: {recipes.length}</p>
+            <p>Total steps: {recipes.reduce((sum, recipe) => sum + recipe.steps.length, 0)}</p>
+          </div>
+        </div>
+      </header>
 
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Your Recipes</h2>
+      <section className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <AddRecipeForm />
+
+        <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="text-lg font-semibold">Quick start tips</h2>
+          <ul className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+            <li>Upload a PDF or paste a recipe link to auto-parse steps.</li>
+            <li>Use ✋ to advance, ✊ to go back, and ✌️ to repeat a step.</li>
+            <li>👍 starts or pauses the smart timer when available.</li>
+          </ul>
+          <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-200">
+            <p className="font-semibold text-slate-900 dark:text-white">Pro tip</p>
+            <p className="mt-2">
+              Keep your device at counter height for the best gesture accuracy.
+            </p>
+          </div>
+        </aside>
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Your Recipes</h2>
+          <p className="text-sm text-slate-500">
+            Launch the assistant to start a guided session.
+          </p>
+        </div>
 
         {recipes.length === 0 ? (
-          <p className="text-slate-500">No recipes added yet.</p>
+          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-900/40">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              No recipes yet
+            </p>
+            <p className="mt-2">
+              Add your first recipe above to unlock hands-free cooking.
+            </p>
+          </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recipes.map(r => (
               <RecipeCard
                 key={r.id}
@@ -34,7 +87,7 @@ const Recipes: React.FC = () => {
             ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }

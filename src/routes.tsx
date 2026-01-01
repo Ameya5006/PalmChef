@@ -6,6 +6,7 @@ import Assistant from '@/pages/Assistant'
 import About from '@/pages/About'
 import Privacy from '@/pages/Privacy'
 import NotFound from '@/pages/NotFound'
+import Auth from '@/pages/Auth'
 import PageTransition from '@/components/PageTransition'
 
 const RoutesConfig: React.FC = () => {
@@ -21,6 +22,7 @@ const RoutesConfig: React.FC = () => {
   <Route path="/assistant" element={<Navigate to="/recipes" replace />} />
   <Route path="/about" element={<About />} />
   <Route path="/privacy" element={<Privacy />} />
+  <Route path="/auth" element={<Auth />} />
   <Route path="*" element={<NotFound />} />
 </Routes>
 
