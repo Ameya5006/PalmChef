@@ -19,8 +19,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!previousAuth.current && user.isAuthenticated) {
-      if (location.pathname === '/signin' || location.pathname === '/login') {
-        navigate('/', { replace: true })
+      if (
+        location.pathname === '/signin' ||
+        location.pathname === '/login' ||
+        location.pathname === '/auth'
+      ) {
+                navigate('/', { replace: true })
       }
     }
     previousAuth.current = user.isAuthenticated

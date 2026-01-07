@@ -1,5 +1,9 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
+import profileImage from '@/assets/profile.png'
+import { saveStoredUser } from '@/utils/user'
+import { useUserStore } from '@/store/user'
 
 type AuthMode = 'login' | 'signup'
 
@@ -12,6 +16,8 @@ type AuthResponse = {
 }
 
 const Auth: React.FC = () => {
+  const navigate = useNavigate()
+  const { setUser } = useUserStore()
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -72,8 +78,19 @@ const Auth: React.FC = () => {
       }
 
       if (data && 'token' in data) {
+        const displayName = data.user.email.split('@')[0] || 'PalmChef User'
+        const storedUser = {
+          id: data.user.id,
+          email: data.user.email,
+          name: displayName,
+          avatarUrl: profileImage
+        }
         localStorage.setItem('palmchef_token', data.token)
-        localStorage.setItem('palmchef_user', JSON.stringify(data.user))
+                saveStoredUser(storedUser)
+        setUser({
+          ...storedUser,
+          isAuthenticated: true
+        })
       }
 
       setSuccess(
@@ -81,6 +98,7 @@ const Auth: React.FC = () => {
           ? 'Welcome back! You are signed in.'
           : 'Account created! You are signed in.'
       )
+            navigate('/', { replace: true })
     } catch (err) {
       setError(
         err instanceof Error

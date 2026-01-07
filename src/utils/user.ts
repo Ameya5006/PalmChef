@@ -7,12 +7,29 @@ export interface StoredUser {
   avatarUrl?: string
 }
 
-const USER_KEYS = ['palmchef-user', 'palmchefUser', 'user']
+type PersistedUserState = {
+  state?: {
+    user?: StoredUser
+  }
+}
+
+const USER_KEYS = ['palmchef-user-profile', 'palmchef-user', 'palmchefUser', 'user']
+
+const extractStoredUser = (
+  value: StoredUser | PersistedUserState | null
+): StoredUser | null => {
+  if (!value) return null
+  if (typeof value === 'object' && 'state' in value && value.state?.user) {
+    return value.state.user
+  }
+  return value as StoredUser
+}
 
 export const getStoredUser = (): StoredUser | null => {
   for (const key of USER_KEYS) {
-    const value = getItem<StoredUser>(key)
-    if (value) return value
+    const value = getItem<StoredUser | PersistedUserState>(key)
+    const user = extractStoredUser(value)
+    if (user) return user
   }
   return null
 }
