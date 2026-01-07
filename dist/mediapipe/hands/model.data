@@ -1,0 +1,2 @@
+This file is present to satisfy the required structure.
+PalmChef loads MediaPipe Hands models from the official CDN at runtime.

@@ -22,6 +22,11 @@ export async function extractPdfText(file: File): Promise<string> {
   return text.trim()
 }
 
+export async function parsePdfToSteps(file: File): Promise<string[]> {
+  const rawText = await extractPdfText(file)
+  return splitIntoSteps(rawText)
+}
+
 export function splitIntoSteps(raw: string): string[] {
   const cleaned = raw
     .replace(/\r/g, "")
