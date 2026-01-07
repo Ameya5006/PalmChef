@@ -40,14 +40,18 @@ export function classifyGesture(
   const ring = fingerCurl(16, 15, 13);
   const pinky = fingerCurl(20, 19, 17);
 
+  const fingerExtended = (tip: number, pip: number, ratio: number, slack = 0.02) =>
+    landmarks[tip].y < landmarks[pip].y - slack || ratio > 0.85;
   const extended = {
-    thumb: thumb > 0.7,
-    index: index > 0.9,
-    middle: middle > 0.9,
-    ring: ring > 0.9,
-    pinky: pinky > 0.9
+    thumb: thumb > 0.6,
+    index: fingerExtended(8, 6, index),
+    middle: fingerExtended(12, 10, middle),
+    ring: fingerExtended(16, 14, ring),
+    pinky: fingerExtended(20, 18, pinky)
   };
-
+  const countExtended = (value: typeof extended) =>
+    Object.values(value).filter(Boolean).length;
+  const extendedCount = countExtended(extended);
 
   // 👍 TIMER
   if (
@@ -72,19 +76,13 @@ export function classifyGesture(
   }
 
   // ✊ PREV
-   if (
-    !extended.thumb &&
-    !extended.index &&
-    !extended.middle &&
-    !extended.ring &&
-    !extended.pinky
-  ) {
+  if (extendedCount <= 1) {
     return { gesture: "PREV", confidence: 0.85 };
   }
 
   // ✋ NEXT
-  if (extended.index && extended.middle && extended.ring && extended.pinky) {
-        return { gesture: "NEXT", confidence: 0.85 };
+  if (extendedCount >= 3) {
+    return { gesture: "NEXT", confidence: 0.85 };
   }
 
   return { gesture: "NONE", confidence: 0.3 };

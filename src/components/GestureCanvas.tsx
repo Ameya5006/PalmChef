@@ -21,7 +21,7 @@ const GestureCanvas: React.FC<Props> = ({
   onGestureFrame,
   throttleMs = 120,
 
-  minConfidence = 0.65,
+  minConfidence = 0.5,
   className
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -133,10 +133,15 @@ const GestureCanvas: React.FC<Props> = ({
           },
           { NEXT: 0, PREV: 0, REPEAT: 0, TIMER: 0, NONE: 0 }
         )
-        const bestGesture = (Object.keys(counts) as PalmGesture[]).reduce(
-          (best, gesture) => (counts[gesture] > counts[best] ? gesture : best),
-          'NONE'
+        const nonNoneGestures = (Object.keys(counts) as PalmGesture[]).filter(
+          gesture => gesture !== 'NONE' && counts[gesture] > 0
         )
+        const bestGesture =
+          nonNoneGestures.length === 0
+            ? 'NONE'
+            : nonNoneGestures.reduce((best, gesture) =>
+                counts[gesture] > counts[best] ? gesture : best
+              )
         const bestConfidence =
           bestGesture === 'NONE'
             ? 0
@@ -148,6 +153,7 @@ const GestureCanvas: React.FC<Props> = ({
         onGestureFrameRef.current?.(bestGesture, bestConfidence)
 
         if (bestGesture === 'NONE') return
+        if (counts[bestGesture] < 2) return
         if (bestConfidence < minConfidenceRef.current) return
         if (now < cooldownUntilRef.current) return
 

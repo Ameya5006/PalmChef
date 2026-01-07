@@ -187,22 +187,23 @@ const Assistant: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col items-center justify-center text-center">
-          <p className="text-sm text-slate-500 mb-2">
-            Step {currentStep + 1} of {recipe.steps.length}
-          </p>
-
-          <div className="text-2xl md:text-3xl font-medium max-w-3xl">
-            {step.text}
+        <div className="flex flex-col gap-6">
+          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 text-center shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              Step {currentStep + 1} of {recipe.steps.length}
+            </p>
+            <div className="mt-4 text-2xl md:text-3xl font-semibold text-slate-900 dark:text-white">
+              {step.text}
+            </div>
           </div>
 
           {step.timer?.seconds && (
-            <div className="mt-6 w-full max-w-md">
+            <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
               <TimerDisplay initialSeconds={step.timer.seconds} />
             </div>
           )}
 
-          <div className="mt-6 w-full max-w-md">
+          <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
             <TTSControls currentText={step.text} />
           </div>
         </div>

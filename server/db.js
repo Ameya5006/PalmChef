@@ -1,16 +1,17 @@
 import mongoose from "mongoose";
 
-const { MONGODB_URI } = process.env;
-
 export async function connectDatabase() {
-  if (!MONGODB_URI) {
-    throw new Error("MONGODB_URI is not set");
+  const { MONGODB_URI, MONGO_URI, DATABASE_URL } = process.env;
+  const connectionString = MONGODB_URI || MONGO_URI || DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error("MongoDB connection string is not set");
   }
 
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
 
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(connectionString);
   return mongoose.connection;
 }

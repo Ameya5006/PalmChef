@@ -43,9 +43,13 @@ const Auth: React.FC = () => {
       return
     }
 
+    const apiBase = import.meta.env.VITE_API_BASE
+      ? String(import.meta.env.VITE_API_BASE)
+      : ''
+
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/${mode}`, {
+      const response = await fetch(`${apiBase}/api/${mode}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -53,19 +57,21 @@ const Auth: React.FC = () => {
         body: JSON.stringify({ email, password })
       })
 
-      const data = (await response.json()) as AuthResponse | { error: string }
+      const contentType = response.headers.get('content-type') ?? ''
+      const responseText = await response.text()
+      const data = responseText && contentType.includes('application/json')
+        ? (JSON.parse(responseText) as AuthResponse | { error: string })
+        : null
 
       if (!response.ok) {
         const message =
-          'error' in data
-            ? typeof data.error === 'string'
-              ? data.error
-              : 'Something went wrong.'
-            : 'Something went wrong.'
+          data && typeof (data as { error?: string }).error === 'string'
+            ? (data as { error: string }).error
+            : 'Unable to reach the server. Please try again.'
         throw new Error(message)
       }
 
-      if ('token' in data) {
+      if (data && 'token' in data) {
         localStorage.setItem('palmchef_token', data.token)
         localStorage.setItem('palmchef_user', JSON.stringify(data.user))
       }
@@ -76,7 +82,11 @@ const Auth: React.FC = () => {
           : 'Account created! You are signed in.'
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to authenticate.')
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to authenticate. Please try again.'
+      )
     } finally {
       setIsLoading(false)
     }
