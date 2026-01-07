@@ -5,7 +5,7 @@
     "module": "ESNext",
     "jsx": "react-jsx",
     "moduleResolution": "Bundler",
-    "types": ["vitest", "node"],
+    "types": ["vitest/globals", "node"],
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "strict": true,
     "noEmit": true,

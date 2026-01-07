@@ -1,34 +1,48 @@
-import React from 'react'
-import { PalmGesture } from '@/utils/gestures'
+import React from "react"
+import type { PalmGesture } from "@/utils/gestures"
 
 interface Props {
   gesture: PalmGesture
-  hint?: string
-}
-
-const colors: Record<PalmGesture, string> = {
-  NEXT: 'bg-emerald-500',
-  PREV: 'bg-amber-500',
-  REPEAT: 'bg-indigo-500',
-  TIMER: 'bg-sky-500',
-  NONE: 'bg-slate-500'
+  confidence: number
+  className?: string
+  placement?: 'overlay' | 'inline'
 }
 
 const labels: Record<PalmGesture, string> = {
-  NEXT: 'Next',
-  PREV: 'Previous',
-  REPEAT: 'Repeat',
-  TIMER: 'Start/Pause Timer',
-  NONE: 'No Gesture'
+  NEXT: "Next Step",
+  PREV: "Previous Step",
+  REPEAT: "Repeat Step",
+  TIMER: "Pause/Resume",
+  NONE: "No Hand"
 }
 
-const GestureHUD: React.FC<Props> = ({ gesture, hint }) => {
+const GestureHUD: React.FC<Props> = ({ gesture, confidence , className ,  placement = 'overlay'}) => {
+  const pct = Math.round(confidence * 100)
+  const locked = confidence >= 0.88 && gesture !== "NONE"
+  const positionClass =
+    placement === 'inline' ? 'relative w-full' : 'absolute z-50'
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
-      <div className={`h-3 w-3 rounded-full ${colors[gesture]}`} />
-      <div className="text-sm">
-        <div className="font-semibold">{labels[gesture]}</div>
-        {hint && <div className="text-slate-500">{hint}</div>}
+    <div className="absolute top-4 right-4 z-50">
+      <div
+        className={`${positionClass} ${placement === 'overlay' ? className ?? 'top-4 right-4' : className ?? ''} rounded-xl px-4 py-3 text-sm shadow-lg backdrop-blur
+          ${locked ? "bg-green-500/90 text-white" : "bg-slate-800/80 text-white"}
+        `}
+      >
+        <div className="font-medium">{labels[gesture]}</div>
+
+        <div className="mt-2 flex items-center gap-2">
+          <div className="h-1.5 w-24 bg-white/30 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-white transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <span className="text-xs">{pct}%</span>
+        </div>
+
+        <div className="mt-1 text-xs opacity-80">
+          {locked ? "Locked" : "Stabilizing"}
+        </div>
       </div>
     </div>
   )

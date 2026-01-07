@@ -28,8 +28,8 @@ const PDFViewer: React.FC<Props> = ({ file, url }) => {
         const ctx = canvas.getContext('2d')!
         canvas.height = viewport.height
         canvas.width = viewport.width
-        await p.render({ canvasContext: ctx as any, viewport }).promise
-      } catch (e) {
+        await p.render({ canvasContext: ctx, viewport, canvas }).promise
+            } catch (e) {
         console.warn('PDF render failed', e)
       }
     }

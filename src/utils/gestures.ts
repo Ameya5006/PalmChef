@@ -1,89 +1,100 @@
-import type { NormalizedLandmark } from '@mediapipe/hands'
+import type { NormalizedLandmark } from "@mediapipe/hands";
 
-export type PalmGesture = 'NEXT' | 'PREV' | 'REPEAT' | 'TIMER' | 'NONE'
+export type PalmGesture = "NEXT" | "PREV" | "REPEAT" | "TIMER" | "NONE";
 
 export interface GestureResult {
-  gesture: PalmGesture
-  confidence: number
-  stableFor: number // ms
-  landmarks: NormalizedLandmark[]
+  gesture: PalmGesture;
+  confidence: number;
 }
 
 /**
- * Heuristic gesture classifier:
- * - NEXT (✋ Open Palm): fingers extended, average curl low, palm area wide
- * - PREV (✊ Fist): fingers curled, area compact
- * - REPEAT (✌️ Victory): index+middle extended, others curled
- * - TIMER (👍 Thumbs Up): thumb extended away from palm, other fingers curled
- */
-export function classifyGesture(landmarks: NormalizedLandmark[]): GestureResult {
-  if (!landmarks || landmarks.length < 21)
-    return { gesture: 'NONE', confidence: 0, stableFor: 0, landmarks }
+ * Gesture meanings:
+ * NEXT   → Open Palm
+ * PREV   → Fist
+ * REPEAT → Victory (✌)
+ * TIMER  → Point Up (☝️) */
+export function classifyGesture(
+  landmarks: NormalizedLandmark[]
+): GestureResult {
+  if (!landmarks || landmarks.length < 21) {
+    return { gesture: "NONE", confidence: 0 };
+  }
 
-  // Utility distances
   const dist = (a: number, b: number) => {
-    const dx = landmarks[a].x - landmarks[b].x
-    const dy = landmarks[a].y - landmarks[b].y
-    const dz = landmarks[a].z - landmarks[b].z
-    return Math.sqrt(dx * dx + dy * dy + dz * dz)
-  }
+    const dx = landmarks[a].x - landmarks[b].x;
+    const dy = landmarks[a].y - landmarks[b].y;
+    const dz = landmarks[a].z - landmarks[b].z;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  };
 
-  // For finger curl: tip to pip vs pip to mcp
   const fingerCurl = (tip: number, pip: number, mcp: number) => {
-    const a = dist(tip, pip)
-    const b = dist(pip, mcp)
-    return a / (b + 1e-5) // lower => curled, higher => extended
+    const a = dist(tip, pip);
+    const b = dist(pip, mcp);
+    return a / (b + 1e-5);
+  };
+
+  const thumb = fingerCurl(4, 3, 2);
+  const index = fingerCurl(8, 7, 5);
+  const middle = fingerCurl(12, 11, 9);
+  const ring = fingerCurl(16, 15, 13);
+  const pinky = fingerCurl(20, 19, 17);
+
+  const fingerExtended = (tip: number, pip: number, ratio: number, slack = 0.02) =>
+    landmarks[tip].y < landmarks[pip].y - slack || ratio > 0.85;
+    const fingerClearlyExtended = (
+    tip: number,
+    pip: number,
+    ratio: number,
+    slack = 0.04
+  ) => landmarks[tip].y < landmarks[pip].y - slack || ratio > 0.95;
+  const extended = {
+    thumb: thumb > 0.6,
+    index: fingerExtended(8, 6, index),
+    middle: fingerExtended(12, 10, middle),
+    ring: fingerExtended(16, 14, ring),
+    pinky: fingerExtended(20, 18, pinky)
+  };
+    const clearlyExtended = {
+    thumb: thumb > 0.7,
+    index: fingerClearlyExtended(8, 6, index),
+    middle: fingerClearlyExtended(12, 10, middle),
+    ring: fingerClearlyExtended(16, 14, ring),
+    pinky: fingerClearlyExtended(20, 18, pinky)
+  };
+  const countExtended = (value: typeof extended) =>
+    Object.values(value).filter(Boolean).length;
+  const extendedCount = countExtended(extended);
+  const clearCount = countExtended(clearlyExtended);
+
+  // ☝️ TIMER (index-pointing; tolerate thumb movement)
+  if (
+    clearlyExtended.index &&
+    !clearlyExtended.middle &&
+    !clearlyExtended.ring &&
+    !clearlyExtended.pinky
+  ) {
+    return { gesture: "TIMER", confidence: 0.9 };
   }
 
-  const curlThumb = fingerCurl(4, 3, 2)
-  const curlIndex = fingerCurl(8, 7, 5)
-  const curlMiddle = fingerCurl(12, 11, 9)
-  const curlRing = fingerCurl(16, 15, 13)
-  const curlPinky = fingerCurl(20, 19, 17)
-
-  const extended = [
-    curlThumb > 0.7,
-    curlIndex > 0.9,
-    curlMiddle > 0.9,
-    curlRing > 0.9,
-    curlPinky > 0.9
-  ]
-
-  const extendedCount = extended.filter(Boolean).length
-
-  // Thumb direction (x separation from palm center vs other fingers)
-  const palmCenter = landmarks[0]
-  const thumbTip = landmarks[4]
-  const indexMCP = landmarks[5]
-  const thumbAway = Math.abs(thumbTip.x - palmCenter.x) > Math.abs(indexMCP.x - palmCenter.x) * 0.6
-
-  // Determine gesture
-  let gesture: PalmGesture = 'NONE'
-  let confidence = 0.5
-
-  // TIMER (👍): thumb extended, others mostly curled
-  if (extended[0] && !extended[1] && !extended[2] && !extended[3] && !extended[4] && thumbAway) {
-    gesture = 'TIMER'
-    confidence = 0.9
-  }
-  // REPEAT (✌️): index + middle extended, others curled
-  else if (!extended[0] && extended[1] && extended[2] && !extended[3] && !extended[4]) {
-    gesture = 'REPEAT'
-    confidence = 0.9
-  }
-  // PREV (✊): few/no fingers extended
-  else if (extendedCount <= 1 && curlIndex < 0.7 && curlMiddle < 0.7) {
-    gesture = 'PREV'
-    confidence = 0.85
-  }
-  // NEXT (✋): most fingers extended
-  else if (extendedCount >= 4) {
-    gesture = 'NEXT'
-    confidence = 0.85
-  } else {
-    gesture = 'NONE'
-    confidence = 0.3
+  // ✌ REPEAT (victory; tolerate thumb extension and slight ring/pinky lift)
+    if (
+    clearlyExtended.index &&
+    clearlyExtended.middle &&
+    !clearlyExtended.ring &&
+    !clearlyExtended.pinky
+  ) {
+    return { gesture: "REPEAT", confidence: 0.9 };
   }
 
-  return { gesture, confidence, stableFor: 0, landmarks }
+  // ✊ PREV
+  if (clearCount <= 1) {
+    return { gesture: "PREV", confidence: 0.85 };
+  }
+
+  // ✋ NEXT
+  if (clearCount >= 3) {
+    return { gesture: "NEXT", confidence: 0.85 };
+  }
+
+  return { gesture: "NONE", confidence: 0.3 };
 }
