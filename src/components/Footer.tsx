@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom'
 
 const Footer: React.FC = () => {
   return (
-     <footer className="bg-slate-100 dark:bg-slate-900 mt-10 border-t border-slate-200 dark:border-slate-800">
+
+    <footer className="mt-12 border-t border-slate-200/70 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
       <div className="container mx-auto grid gap-8 px-4 py-10 md:grid-cols-4">
         <div className="space-y-3">
           <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
-            <img src="/logo.png" alt="PalmChef logo" className="h-8 w-auto" />
+          <img src="/logo.png" alt="PalmChef" className="h-8 w-8" />
             <span>PalmChef</span>
           </Link>
           <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -80,9 +81,9 @@ const Footer: React.FC = () => {
           </Link>
         </div>
       </div>
-      <div className="border-t border-slate-200 dark:border-slate-800 py-4 text-center text-xs text-slate-500">
+      <div className="border-t border-slate-200/70 dark:border-slate-800 py-4 text-center text-xs text-slate-500">
         © {new Date().getFullYear()} PalmChef — The Hands-Free Kitchen Assistant
-      
+
       </div>
     </footer>
   )

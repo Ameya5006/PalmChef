@@ -8,13 +8,7 @@
   "description": "Gesture-controlled cooking assistant with TTS, timers, and offline support.",
   "icons": [
     {
-      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADAAQMAAACo+1o8AAAABlBMVEX///8AAABVwtN+AAAAIUlEQVR4nO3BMQEAAADCoPVPbQ8HFAAAAAAAAAAAAAAAAPgG+8gAAZjYq0kAAAAASUVORK5CYII=",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAC5Y+RdAAAABlBMVEX///8AAABVwtN+AAAADElEQVR4nGNgYGBgYAAAABIAAax9k0wAAAAASUVORK5CYII=",
+      "src": "/logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"

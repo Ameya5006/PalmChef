@@ -6,7 +6,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { connectDatabase } from "./db.js";
-import { User } from "./models/User.js";
+import { User } from "./models/user.js";
 
 dotenv.config();
 
@@ -38,6 +38,7 @@ const StepSchema = z.object({
 });
 
 const StepsSchema = z.array(StepSchema).min(1);
+
 const AuthSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8)
@@ -48,6 +49,7 @@ function createToken(user) {
     expiresIn: "7d"
   });
 }
+
 // --------------------
 // API Route
 // --------------------
@@ -73,15 +75,7 @@ RULES (STRICT):
 - Do NOT include markdown or explanation.
 
 FORMAT (STRICT JSON ARRAY):
-[
-  { "text": "Step description", "seconds"?: number }
-]
-
-TIME EXAMPLES:
-- "15 minutes" → 900
-- "1 hour 30 minutes" → 5400
-- "overnight" → 28800
-
+@@ -71,28 +87,97 @@ TIME EXAMPLES:
 TEXT:
 """
 ${text.slice(0, 12000)}

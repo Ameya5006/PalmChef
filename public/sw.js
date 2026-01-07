@@ -2,13 +2,14 @@
    This SW also supports manual updates via postMessage({type:'SKIP_WAITING'}) */
 
 const CACHE_PREFIX = 'palmchef';
-const STATIC_CACHE = `${CACHE_PREFIX}-static-v1`;
-const RUNTIME_CACHE = `${CACHE_PREFIX}-runtime-v1`;
+const STATIC_CACHE = `${CACHE_PREFIX}-static-v3`;
+const RUNTIME_CACHE = `${CACHE_PREFIX}-runtime-v3`;
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.webmanifest'
+  '/manifest.webmanifest',
+  '/logo.png'
   // Vite will add hashed assets automatically at build time; this list is a minimal bootstrap.
 ];
 
