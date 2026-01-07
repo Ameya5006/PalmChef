@@ -87,7 +87,7 @@ const NavBar: React.FC = () => {
           </Link>
           {!userName && (
             <Link
-              to="/signin"
+              to="/auth"
               className="ml-1 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Sign in
