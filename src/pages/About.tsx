@@ -17,9 +17,9 @@ const gestures = [
     description: 'Replays the current instruction hands-free.'
   },
   {
-    icon: '👍',
-    title: 'Timer control',
-    description: 'Start or pause the smart timer when it appears.'
+    icon: '☝️',
+    title: 'Narration control',
+    description: 'Start or pause the narration .'
   }
 ]
 
