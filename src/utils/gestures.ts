@@ -12,8 +12,7 @@ export interface GestureResult {
  * NEXT   → Open Palm
  * PREV   → Fist
  * REPEAT → Victory (✌)
- * TIMER  → Thumbs Up (👍)
- */
+ * TIMER  → Point Up (☝️) */
 export function classifyGesture(
   landmarks: NormalizedLandmark[]
 ): GestureResult {
@@ -42,6 +41,12 @@ export function classifyGesture(
 
   const fingerExtended = (tip: number, pip: number, ratio: number, slack = 0.02) =>
     landmarks[tip].y < landmarks[pip].y - slack || ratio > 0.85;
+    const fingerClearlyExtended = (
+    tip: number,
+    pip: number,
+    ratio: number,
+    slack = 0.04
+  ) => landmarks[tip].y < landmarks[pip].y - slack || ratio > 0.95;
   const extended = {
     thumb: thumb > 0.6,
     index: fingerExtended(8, 6, index),
@@ -49,39 +54,45 @@ export function classifyGesture(
     ring: fingerExtended(16, 14, ring),
     pinky: fingerExtended(20, 18, pinky)
   };
+    const clearlyExtended = {
+    thumb: thumb > 0.7,
+    index: fingerClearlyExtended(8, 6, index),
+    middle: fingerClearlyExtended(12, 10, middle),
+    ring: fingerClearlyExtended(16, 14, ring),
+    pinky: fingerClearlyExtended(20, 18, pinky)
+  };
   const countExtended = (value: typeof extended) =>
     Object.values(value).filter(Boolean).length;
   const extendedCount = countExtended(extended);
+  const clearCount = countExtended(clearlyExtended);
 
-  // 👍 TIMER
+  // ☝️ TIMER (index-pointing; tolerate thumb movement)
   if (
-    extended.thumb &&
-    !extended.index &&
-    !extended.middle &&
-    !extended.ring &&
-    !extended.pinky
+    clearlyExtended.index &&
+    !clearlyExtended.middle &&
+    !clearlyExtended.ring &&
+    !clearlyExtended.pinky
   ) {
     return { gesture: "TIMER", confidence: 0.9 };
   }
 
-  // ✌ REPEAT
-  if (
-    !extended.thumb &&
-    extended.index &&
-    extended.middle &&
-    !extended.ring &&
-    !extended.pinky
+  // ✌ REPEAT (victory; tolerate thumb extension and slight ring/pinky lift)
+    if (
+    clearlyExtended.index &&
+    clearlyExtended.middle &&
+    !clearlyExtended.ring &&
+    !clearlyExtended.pinky
   ) {
     return { gesture: "REPEAT", confidence: 0.9 };
   }
 
   // ✊ PREV
-  if (extendedCount <= 1) {
+  if (clearCount <= 1) {
     return { gesture: "PREV", confidence: 0.85 };
   }
 
   // ✋ NEXT
-  if (extendedCount >= 3) {
+  if (clearCount >= 3) {
     return { gesture: "NEXT", confidence: 0.85 };
   }
 

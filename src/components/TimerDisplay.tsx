@@ -42,6 +42,13 @@ const TimerDisplay: React.FC<Props> = ({
     }
   }, [running])
 
+    useEffect(() => {
+    if (seconds === 0 && running) {
+      if (isRunning === undefined) setLocalRunning(false)
+      onRunningChange?.(false)
+    }
+  }, [seconds, running, isRunning, onRunningChange])
+  
   const reset = () => setSeconds(initialSeconds)
   const start = () => {
     if (isRunning === undefined) setLocalRunning(true)

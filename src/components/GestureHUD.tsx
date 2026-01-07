@@ -12,7 +12,7 @@ const labels: Record<PalmGesture, string> = {
   NEXT: "Next Step",
   PREV: "Previous Step",
   REPEAT: "Repeat Step",
-  TIMER: "Timer",
+  TIMER: "Pause/Resume",
   NONE: "No Hand"
 }
 

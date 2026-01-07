@@ -12,7 +12,14 @@ import GestureHUD from "@/components/GestureHUD";
 import TimerDisplay from "@/components/TimerDisplay";
 import TTSControls from "@/components/TTSControls";
 
-import { speakText, stopSpeech } from "@/utils/tts";
+import {
+  isSpeechPaused,
+  isSpeechSpeaking,
+  pauseSpeech,
+  resumeSpeech,
+  speakText,
+  stopSpeech
+} from "@/utils/tts";
 
 const Assistant: React.FC = () => {
   // -----------------------------
@@ -26,7 +33,6 @@ const Assistant: React.FC = () => {
     timerActive,
     nextStep,
     prevStep,
-    toggleTimer,
     setRecipe,
     setTimerActive
   } = useSessionStore();
@@ -102,7 +108,13 @@ const Assistant: React.FC = () => {
         break;
 
       case "TIMER":
-        toggleTimer();
+                if (isSpeechSpeaking() || isSpeechPaused()) {
+          if (isSpeechPaused()) {
+            resumeSpeech();
+          } else {
+            pauseSpeech();
+          }
+        }
         break;
     }
 
@@ -177,8 +189,8 @@ const Assistant: React.FC = () => {
                 ✌️ Repeat narration
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-                👍 Start/Pause timer
-              </div>
+                ☝️ Pause/Resume narration
+                </div>
             </div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
@@ -199,7 +211,11 @@ const Assistant: React.FC = () => {
 
           {step.timer?.seconds && (
             <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
-              <TimerDisplay initialSeconds={step.timer.seconds} />
+                            <TimerDisplay
+                initialSeconds={step.timer.seconds}
+                isRunning={timerActive}
+                onRunningChange={setTimerActive}
+              />
             </div>
           )}
 

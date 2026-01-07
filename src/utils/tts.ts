@@ -32,3 +32,25 @@ export function stopSpeech() {
   window.speechSynthesis.cancel()
   currentUtterance = null
 }
+
+export function pauseSpeech() {
+  if (!('speechSynthesis' in window)) return
+  if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+    window.speechSynthesis.pause()
+  }
+}
+
+export function resumeSpeech() {
+  if (!('speechSynthesis' in window)) return
+  if (window.speechSynthesis.paused) {
+    window.speechSynthesis.resume()
+  }
+}
+
+export function isSpeechPaused() {
+  return 'speechSynthesis' in window ? window.speechSynthesis.paused : false
+}
+
+export function isSpeechSpeaking() {
+  return 'speechSynthesis' in window ? window.speechSynthesis.speaking : false
+}
