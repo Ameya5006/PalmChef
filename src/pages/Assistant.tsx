@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { motion } from "framer-motion";
 
 import { useRecipesStore } from "@/store/recipes";
 import { useSessionStore } from "@/store/session";
@@ -200,12 +201,24 @@ const Assistant: React.FC = () => {
         </div>
 
         <div className="flex flex-col gap-6">
-          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 text-center shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
-            <p className="text-xs uppercase tracking-wide text-slate-500">
-              Step {currentStep + 1} of {recipe.steps.length}
-            </p>
-            <div className="mt-4 text-2xl md:text-3xl font-semibold text-slate-900 dark:text-white">
-              {step.text}
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/85 p-8 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-400/80 via-rose-400/80 to-sky-400/80" />
+            <div className="text-center">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Step {currentStep + 1} of {recipe.steps.length}
+              </p>
+              <motion.div
+                key={currentStep}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+                className="mt-5 text-lg font-semibold leading-relaxed text-slate-900 dark:text-white sm:text-xl md:text-2xl"
+              >
+                {step.text}
+              </motion.div>
+              <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                Use ✋ or ✊ to navigate. Say it again with ✌️.
+              </p>
             </div>
           </div>
 
