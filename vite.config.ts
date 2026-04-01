@@ -13,20 +13,12 @@ export default defineConfig({
 
   server: {
     port: 5173,
-    open: true,
-    host: 'localhost',
+    host: true,
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true
       }
-    },
-
-    // ✅ fixes websocket / HMR failures on Windows + SW setups
-    hmr: {
-      protocol: 'ws',
-      host: 'localhost',
-      clientPort: 5173
     }
   },
 
