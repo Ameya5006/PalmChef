@@ -1,0 +1,17 @@
+{
+  "name": "PalmChef — The Hands-Free Kitchen Assistant",
+  "short_name": "PalmChef",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "description": "Gesture-controlled cooking assistant with TTS, timers, and offline support.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
