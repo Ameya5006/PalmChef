@@ -13,7 +13,7 @@ Gesture-controlled cooking assistant with MediaPipe hand tracking, TTS guidance,
 - Unit tests with Vitest + React Testing Library
 
 ---
-
+## Link to the application- https://palmchef-14qa.onrender.com
 ## 🛠 Tech Stack
 - **React 18 + TypeScript + Vite**
 - **Tailwind CSS + Framer Motion**
