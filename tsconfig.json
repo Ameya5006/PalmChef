@@ -11,16 +11,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "resolveJsonModule": true,
-
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    },
-
-    //"ignoreDeprecations": 5.6
+    "resolveJsonModule": true
   },
-  "include": ["src" , "src/types"],
-  
+  "include": ["src", "src/types"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
