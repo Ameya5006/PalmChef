@@ -1,0 +1,242 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
+import { motion } from "framer-motion";
+
+import { useRecipesStore } from "@/store/recipes";
+import { useSessionStore } from "@/store/session";
+import { useSettingsStore } from "@/store/settings";
+
+import type { PalmGesture } from "@/utils/gestures";
+
+import GestureCanvas from "@/components/GestureCanvas";
+import GestureHUD from "@/components/GestureHUD";
+import TimerDisplay from "@/components/TimerDisplay";
+import TTSControls from "@/components/TTSControls";
+
+import {
+  isSpeechPaused,
+  isSpeechSpeaking,
+  pauseSpeech,
+  resumeSpeech,
+  speakText,
+  stopSpeech
+} from "@/utils/tts";
+
+const Assistant: React.FC = () => {
+  // -----------------------------
+  // URL → session sync
+  // -----------------------------
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    currentRecipeId,
+    currentStep,
+    timerSeconds,
+    nextStep,
+    prevStep,
+    setRecipe,
+    setStepTimer
+  } = useSessionStore();
+
+  useEffect(() => {
+    if (id) {
+      setRecipe(id);
+    }
+  }, [id, setRecipe]);
+
+  // -----------------------------
+  // Stores
+  // -----------------------------
+  const recipes = useRecipesStore((s) => s.recipes);
+  const { voiceRate, voicePitch } = useSettingsStore();
+
+  // -----------------------------
+  // HUD state
+  // -----------------------------
+  const [hudGesture, setHudGesture] = useState<PalmGesture>("NONE");
+  const [hudConfidence, setHudConfidence] = useState(0);
+
+  // Prevent rapid re-trigger
+  const lastGestureRef = useRef<PalmGesture>("NONE");
+
+  // -----------------------------
+  // Derived recipe + step
+  // -----------------------------
+  const recipe = useMemo(
+    () => recipes.find((r) => r.id === currentRecipeId),
+    [recipes, currentRecipeId]
+  );
+
+  const step = recipe?.steps[currentStep];
+
+  // -----------------------------
+  // Auto-speak on step change
+  // -----------------------------
+  useEffect(() => {
+    if (!step) return;
+    stopSpeech();
+    setStepTimer(step.timer?.seconds ?? 0, `${recipe?.id}:${step.id}`);
+    speakText(step.text, {
+      rate: voiceRate,
+      pitch: voicePitch
+    });
+  }, [step, recipe?.id, voiceRate, voicePitch, setStepTimer]);
+
+  // -----------------------------
+  // Gesture → action mapping
+  // -----------------------------
+  const handleGesture = (gesture: PalmGesture) => {
+    if (gesture === lastGestureRef.current) return;
+    lastGestureRef.current = gesture;
+
+    switch (gesture) {
+      case "NEXT":
+        nextStep();
+        break;
+
+      case "PREV":
+        prevStep();
+        break;
+
+      case "REPEAT":
+        if (step) {
+          stopSpeech();
+          speakText(step.text, {
+            rate: voiceRate,
+            pitch: voicePitch
+          });
+        }
+        break;
+
+      case "TIMER":
+                if (isSpeechSpeaking() || isSpeechPaused()) {
+          if (isSpeechPaused()) {
+            resumeSpeech();
+          } else {
+            pauseSpeech();
+          }
+        }
+        break;
+    }
+
+    // cooldown
+    setTimeout(() => {
+      lastGestureRef.current = "NONE";
+    }, 700);
+  };
+
+  // -----------------------------
+  // Empty state
+  // -----------------------------
+  if (!recipe || !step) {
+    return (
+      <div className="p-6 text-center text-slate-500">
+        No active recipe selected.
+      </div>
+    );
+  }
+
+  // -----------------------------
+  // UI
+  // -----------------------------
+  return (
+    <div className="relative flex flex-col gap-6 p-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px),1fr]">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Live camera
+            </h2>
+            <span className="text-xs text-slate-400">Best in good lighting</span>
+          </div>
+          <div className="relative">
+            <GestureCanvas
+              onGesture={handleGesture}
+              onGestureFrame={(g, c) => {
+                setHudGesture(g);
+                setHudConfidence(c);
+              }}
+              className="aspect-video max-h-[280px] sm:max-h-[320px]"
+            />
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Gesture status
+              </p>
+              <span className="text-xs text-slate-400">Live feedback</span>
+            </div>
+            <div className="mt-3">
+              <GestureHUD
+                gesture={hudGesture}
+                confidence={hudConfidence}
+                placement="inline"
+                className="max-w-full"
+              />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              Gesture shortcuts
+            </p>
+            <div className="mt-3 grid gap-3 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                ✋ Next step
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                ✊ Previous step
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                ✌️ Repeat narration
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                ☝️ Pause/Resume narration
+                </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+            Keep your palm centered and about 2 feet from the camera for
+            reliable detection.
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-6">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/85 p-8 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-400/80 via-rose-400/80 to-sky-400/80" />
+            <div className="text-center">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Step {currentStep + 1} of {recipe.steps.length}
+              </p>
+              <motion.div
+                key={currentStep}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+                className="mt-5 text-lg font-semibold leading-relaxed text-slate-900 dark:text-white sm:text-xl md:text-2xl"
+              >
+                {step.text}
+              </motion.div>
+              <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                Use ✋ or ✊ to navigate. Say it again with ✌️.
+              </p>
+            </div>
+          </div>
+
+          {(step.timer?.seconds || timerSeconds > 0) && (
+            <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
+              <TimerDisplay
+                initialSeconds={step.timer?.seconds ?? timerSeconds}
+              />
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
+            <TTSControls currentText={step.text} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Assistant;
