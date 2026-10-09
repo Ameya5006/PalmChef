@@ -67,6 +67,16 @@ describe('Gemini SDK request construction', () => {
     expect(mocks.generateContent.mock.calls.map(call => call[0].model)).toEqual([MODEL, FALLBACK_MODEL])
     expect(mocks.generateContent.mock.calls[1][0].config.httpOptions.retryOptions.attempts).toBe(1)
   })
+  it('uses separate new and modification instructions in structured recipe requests', async () => {
+    mocks.generateContent.mockResolvedValue({ text: JSON.stringify(validRecipe) })
+    const gemini = createGemini('test-key', { log: () => {} })
+    await gemini.recipe('Bhindi masala recipe', { recipe: null }, 'new')
+    await gemini.recipe('Change this soup', { recipe: { title: 'Soup' } }, 'modify')
+    expect(mocks.generateContent.mock.calls[0][0].contents).toContain('Create a new standalone recipe')
+    expect(mocks.generateContent.mock.calls[0][0].contents).not.toContain('Soup')
+    expect(mocks.generateContent.mock.calls[1][0].contents).toContain('Modify the provided active recipe')
+    expect(mocks.generateContent.mock.calls[1][0].contents).toContain('Soup')
+  })
 
   it('stops after both models fail and never retries non-transient errors', async () => {
     mocks.generateContent.mockRejectedValueOnce(providerError(429)).mockRejectedValueOnce(providerError(503))

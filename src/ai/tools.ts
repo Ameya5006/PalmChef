@@ -27,9 +27,9 @@ const contextSchema = z.object({
     title: z.string().max(120),
     servings: z.number().int().min(1).max(100).optional(),
     ingredients: z.array(ingredientSchema).max(60).optional(),
-    steps: z.array(z.string().max(600)).max(50).optional()
-  }).strict().nullable(),
-  stepIndex: z.number().int().min(0).max(49).nullable(),
+    steps: z.array(z.string().max(4000)).max(50).optional()
+  }).strict().refine(value => !value.steps || value.steps.reduce((total, step) => total + step.length, 0) <= 30_000).nullable(),
+  stepIndex: z.number().int().min(0).max(9999).nullable(),
   timer: z.object({ remainingSeconds: z.number().int().min(0).max(86400), active: z.boolean(), paused: z.boolean(), label: z.string().max(80) }).strict()
 }).strict()
 
@@ -58,7 +58,7 @@ const argsSchema: Record<string, z.ZodTypeAny> = {
   stop_timer: z.object({}).strict(), pause_timer: z.object({}).strict(), resume_timer: z.object({}).strict(), get_current_recipe: z.object({}).strict(), get_current_step: z.object({}).strict(), next_step: z.object({}).strict(), previous_step: z.object({}).strict(), repeat_instruction: z.object({}).strict(), get_ingredients: z.object({}).strict(),
   scale_recipe: z.object({ servings: z.number().int().min(1).max(100) }).strict(),
   substitute_ingredient: z.object({ ingredient: z.string().min(1).max(80), constraint: z.string().max(160).optional() }).strict(),
-  generate_recipe: z.object({ request: z.string().min(3).max(500) }).strict()
+  generate_recipe: z.object({ request: z.string().min(3).max(500), mode: z.enum(['new', 'modify']) }).strict()
 }
 
 export async function executeTool(call: ToolCall, apiBase = '', inCookingSession = true): Promise<ToolOutcome> {
@@ -102,7 +102,7 @@ export async function executeTool(call: ToolCall, apiBase = '', inCookingSession
       catch { return fail('This recipe exceeds the AI context limits. Shorten its ingredients or instructions to use full-recipe questions.') }
     case 'get_current_step':
       if (!recipe?.steps[state.currentStep]) return fail('No active step')
-      if (!z.string().max(600).safeParse(recipe.steps[state.currentStep].text).success) return fail('This instruction exceeds the AI context limits. Shorten it before asking about this step.')
+      if (!z.string().min(1).max(8000).safeParse(recipe.steps[state.currentStep].text).success) return fail('This instruction exceeds the 8,000-character AI step limit. Select a shorter instruction or review the imported PDF.')
       return { result: { success: true, stepNumber: state.currentStep + 1, instruction: recipe.steps[state.currentStep].text }, status: `Viewing step ${state.currentStep + 1}` }
     case 'next_step':
       if (!recipe) return fail('No active recipe')
@@ -141,9 +141,10 @@ export async function executeTool(call: ToolCall, apiBase = '', inCookingSession
       catch { return fail('This ingredient list exceeds the AI context limits. Shorten it before asking for substitutions.') }
     case 'generate_recipe': {
       let context
-      try { context = cookingContext(inCookingSession, 'full') }
-      catch { return fail('This recipe exceeds the AI context limits. Shorten its ingredients or instructions before generating a modified recipe.') }
-      const response = await fetch(`${apiBase}/api/ai/recipe`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request: args.request, context }), signal: AbortSignal.timeout(65000), cache: 'no-store' })
+      if (args.mode === 'modify' && !recipe) return fail('Open the recipe you want to modify first')
+      try { context = args.mode === 'new' ? cookingContext(false, 'summary') : cookingContext(inCookingSession, 'full') }
+      catch { return fail('This recipe exceeds the AI context limits. Select a smaller source recipe before requesting a modification; no instructions were omitted.') }
+      const response = await fetch(`${apiBase}/api/ai/recipe`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request: args.request, mode: args.mode, context }), signal: AbortSignal.timeout(65000), cache: 'no-store' })
       if (!response.ok) {
         const body = await response.json().catch(() => null)
         const safeErrors = ['AI returned an invalid recipe twice. Please retry or simplify the request.', 'Recipe AI is busy. Please retry shortly.', 'Recipe AI is unavailable. Please retry shortly.']

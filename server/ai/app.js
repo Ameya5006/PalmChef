@@ -106,9 +106,10 @@ export function createAiApp({ gemini = null, allowedOrigin = aiAllowedOrigin() }
 
   app.post('/api/ai/recipe', async (req, res) => {
     const input = req.body
-    if (typeof input?.request !== 'string' || input.request.length < 3 || input.request.length > 500 || !contextSchema.safeParse(input.context).success) return res.status(400).json({ error: 'Invalid recipe request.' })
-    if (input.context.activeRecipe && (!input.context.recipe || !Array.isArray(input.context.recipe.steps))) return res.status(400).json({ error: 'Complete recipe context is required to modify the active recipe.' })
-    try { res.json({ recipe: await timeout(getGemini().recipe(input.request, input.context)) }) }
+    if (typeof input?.request !== 'string' || input.request.length < 3 || input.request.length > 500 || !['new', 'modify'].includes(input.mode) || !contextSchema.safeParse(input.context).success) return res.status(400).json({ error: 'Invalid recipe request.' })
+    if (input.mode === 'modify' && (!input.context.activeRecipe || !input.context.recipe || !Array.isArray(input.context.recipe.steps))) return res.status(400).json({ error: 'Complete recipe context is required to modify the active recipe.' })
+    if (input.mode === 'new' && (input.context.activeRecipe || input.context.recipe)) return res.status(400).json({ error: 'New recipe requests must not include the active recipe.' })
+    try { res.json({ recipe: await timeout(getGemini().recipe(input.request, input.context, input.mode)) }) }
     catch (error) {
       if (error instanceof GeminiFailure && error.category === 'invalid_recipe') return res.status(502).json({ error: 'AI returned an invalid recipe twice. Please retry or simplify the request.' })
       const publicFailure = unavailable(error)

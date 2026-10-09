@@ -10,6 +10,7 @@ const call = (name: string, args: unknown = {}) => ({ id: name, name, args })
 beforeEach(() => {
   useRecipesStore.setState({ recipes: [recipe] })
   useSessionStore.getState().setRecipe('one')
+  useSessionStore.getState().setStep(0)
   useSessionStore.getState().setStepTimer(1200)
 })
 
@@ -77,11 +78,11 @@ describe('browser tool execution', () => {
     expect((await executeTool(call('start_timer', { duration_seconds: 60 }))).result.success).toBe(false)
   })
   it('rejects oversized recipe context instead of silently dropping instructions', () => {
-    useRecipesStore.setState({ recipes: [{ ...recipe, steps: [{ id: 'long', text: 'x'.repeat(601) }] }] })
+    useRecipesStore.setState({ recipes: [{ ...recipe, steps: [{ id: 'long', text: 'x'.repeat(4001) }] }] })
     expect(() => cookingContext()).toThrow(/context limits/)
   })
   it('keeps a large active recipe out of timer context while validating full-context operations', async () => {
-    const large = { ...recipe, steps: [{ id: 'long', text: 'private-instruction-'.repeat(40) }], ingredients: recipe.ingredients }
+    const large = { ...recipe, steps: [{ id: 'long', text: 'private-instruction-'.repeat(250) }], ingredients: recipe.ingredients }
     useRecipesStore.setState({ recipes: [large] })
     const summary = cookingContext(true, 'summary')
     expect(summary.activeRecipe).toBe(true)
@@ -91,15 +92,60 @@ describe('browser tool execution', () => {
     expect(cookingContext(true, 'summary').timer).toMatchObject({ active: true, remainingSeconds: 60 })
     expect((await executeTool(call('pause_timer'))).result.success).toBe(true)
     expect((await executeTool(call('get_current_recipe'))).status).toMatch(/context limits/)
-    expect((await executeTool(call('get_current_step'))).status).toMatch(/context limits/)
+    expect((await executeTool(call('get_current_step'))).result.instruction).toBe(large.steps[0].text)
     expect((await executeTool(call('get_ingredients'))).result.ingredients).toEqual(recipe.ingredients)
     const substitute = await executeTool(call('substitute_ingredient', { ingredient: 'Carrot' }))
     expect(substitute.result.success).toBe(true)
     expect(JSON.stringify(substitute.result)).not.toContain('private-instruction-')
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-    expect((await executeTool(call('generate_recipe', { request: 'Modify this soup' }))).status).toMatch(/context limits/)
+    expect((await executeTool(call('generate_recipe', { request: 'Modify this soup', mode: 'modify' }))).status).toMatch(/context limits/)
     expect(fetchMock).not.toHaveBeenCalled()
     fetchMock.mockRestore()
+  })
+  it('rejects a focused instruction above its explicit bound without truncation', async () => {
+    useRecipesStore.setState({ recipes: [{ ...recipe, steps: [{ id: 'long', text: 'x'.repeat(8001) }] }] })
+    const outcome = await executeTool(call('get_current_step'))
+    expect(outcome.result.success).toBe(false)
+    expect(outcome.status).toMatch(/8,000-character/)
+  })
+  it('keeps timer and selected-step tools usable beyond the full-recipe step-count limit', async () => {
+    const steps = Array.from({ length: 60 }, (_, index) => ({ id: `step-${index}`, text: `Cook step ${index} carefully.` }))
+    useRecipesStore.setState({ recipes: [{ ...recipe, steps }] })
+    useSessionStore.getState().setStep(55)
+    expect(cookingContext(true, 'summary').stepIndex).toBe(55)
+    expect((await executeTool(call('start_timer', { duration_seconds: 60 }))).result.success).toBe(true)
+    expect((await executeTool(call('get_current_step'))).result.instruction).toBe(steps[55].text)
+    expect((await executeTool(call('get_current_recipe'))).result.success).toBe(false)
+  })
+  it('generates a new recipe without sending an oversized active recipe', async () => {
+    useRecipesStore.setState({ recipes: [{ ...recipe, steps: [{ id: 'long', text: 'private-active-step-'.repeat(250) }] }] })
+    const generated = { title: 'Bhindi Masala', description: 'A spiced okra dish for dinner.', servings: 2, prepMinutes: 10, cookMinutes: 20, ingredients: [{ name: 'Okra', quantity: 250, unit: 'g' }], steps: [{ text: 'Cook the okra with spices until tender.' }] }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: async () => ({ recipe: generated }) } as Response)
+    try {
+      const outcome = await executeTool(call('generate_recipe', { request: 'Bhindi masala recipe', mode: 'new' }))
+      expect(outcome.result).toMatchObject({ success: true, previewReady: true, saved: false })
+      expect(outcome.proposal?.recipe).toEqual(generated)
+      const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))
+      expect(body.mode).toBe('new')
+      expect(body.context).toMatchObject({ activeRecipe: false, recipe: null })
+      expect(JSON.stringify(body)).not.toContain('private-active-step-')
+      expect(useRecipesStore.getState().recipes).toHaveLength(1)
+    } finally { fetchMock.mockRestore() }
+  })
+  it('sends complete bounded context for explicit modification and a focused long current instruction', async () => {
+    const longStep = 'Stir the okra and spices. '.repeat(50)
+    useRecipesStore.setState({ recipes: [{ ...recipe, steps: [{ id: 'long', text: longStep }] }] })
+    expect((await executeTool(call('get_current_step'))).result.instruction).toBe(longStep)
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: async () => ({ recipe: { title: 'Modified soup', description: 'A modified vegetable soup.', servings: 4, prepMinutes: 10, cookMinutes: 20, ingredients: recipe.ingredients, steps: [{ text: 'Simmer the vegetables until tender.' }] } }) } as Response)
+    try {
+      const outcome = await executeTool(call('generate_recipe', { request: 'Change this recipe', mode: 'modify' }))
+      expect(outcome.result.success).toBe(true)
+      const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))
+      expect(body.mode).toBe('modify')
+      expect(body.context.activeRecipe).toBe(true)
+      expect(body.context.recipe.steps).toEqual([longStep])
+      expect(useRecipesStore.getState().recipes).toHaveLength(1)
+    } finally { fetchMock.mockRestore() }
   })
   it('moves through the same session store as gestures', async () => {
     await executeTool(call('next_step'))
@@ -131,7 +177,7 @@ describe('browser tool execution', () => {
   })
   it('validates a generated recipe before previewing it', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: async () => ({ recipe: { title: 'Bad' } }) } as Response)
-    const outcome = await executeTool(call('generate_recipe', { request: 'Make soup' }))
+    const outcome = await executeTool(call('generate_recipe', { request: 'Make soup', mode: 'new' }))
     expect(outcome.result.success).toBe(false)
     expect(useRecipesStore.getState().recipes).toHaveLength(1)
     fetchMock.mockRestore()

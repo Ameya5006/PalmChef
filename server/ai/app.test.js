@@ -24,6 +24,10 @@ describe('Gemini request and tool protocol', () => {
     expect(toolDeclarations).toHaveLength(13)
     expect(toolDeclarations.find(tool => tool.name === 'start_timer').parameters.required).toContain('duration_seconds')
     expect(toolDeclarations.find(tool => tool.name === 'stop_timer').description).toMatch(/cancel/)
+    expect(toolDeclarations.find(tool => tool.name === 'generate_recipe').parameters.required).toContain('mode')
+    expect(validateToolCall('generate_recipe', { request: 'Bhindi masala recipe', mode: 'new' }).ok).toBe(true)
+    expect(validateToolCall('generate_recipe', { request: 'Change this recipe', mode: 'modify' }).ok).toBe(true)
+    expect(validateToolCall('generate_recipe', { request: 'Change this recipe' }).ok).toBe(false)
     expect(validateToolCall('start_timer', { duration_seconds: 0 }).ok).toBe(false)
     expect(validateToolCall('stop_timer', {}).ok).toBe(true)
     expect(validateToolCall('stop_timer', { duration_seconds: 5 }).ok).toBe(false)
@@ -123,21 +127,35 @@ describe('Gemini request and tool protocol', () => {
   it('rejects invalid generated recipes from the Gemini adapter', async () => {
     const gemini = { recipe: async () => recipeSchema.parse({ title: 'bad' }) }
     await withServer(gemini, async post => {
-      const response = await post('/api/ai/recipe', { request: 'Make soup', context })
+      const response = await post('/api/ai/recipe', { request: 'Make soup', mode: 'new', context })
       expect(response.status).toBe(502)
       expect(response.body.error).not.toContain('Zod')
     })
   })
   it('requires complete active-recipe context for recipe modification', async () => {
     await withServer({ recipe: async () => { throw Error('must not generate') } }, async post => {
-      const response = await post('/api/ai/recipe', { request: 'Modify this soup', context: { ...context, activeRecipe: true, recipe: null } })
+      const response = await post('/api/ai/recipe', { request: 'Modify this soup', mode: 'modify', context: { ...context, activeRecipe: true, recipe: null } })
       expect(response.status).toBe(400)
       expect(response.body.error).toMatch(/Complete recipe context/)
     })
   })
+  it('keeps new recipe requests independent of active recipe data', async () => {
+    const generated = { title: 'Bhindi Masala', description: 'A spiced okra dish for dinner.', servings: 2, prepMinutes: 10, cookMinutes: 20, ingredients: [{ name: 'Okra', quantity: 250, unit: 'g' }], steps: [{ text: 'Cook the okra with spices until tender.' }] }
+    const seen = []
+    await withServer({ recipe: async (...args) => { seen.push(args); return generated } }, async post => {
+      const standalone = await post('/api/ai/recipe', { request: 'Bhindi masala recipe', mode: 'new', context: { ...context, activeRecipe: false } })
+      expect(standalone.status).toBe(200)
+      expect(standalone.body.recipe).toEqual(generated)
+      const leaked = await post('/api/ai/recipe', { request: 'Bhindi masala recipe', mode: 'new', context: { ...context, activeRecipe: true } })
+      expect(leaked.status).toBe(400)
+    })
+    expect(seen).toHaveLength(1)
+    expect(seen[0][2]).toBe('new')
+    expect(seen[0][1].recipe).toBeNull()
+  })
   it('returns a sanitized busy error when primary and fallback are rate limited', async () => {
     await withServer({ recipe: async () => { throw new GeminiFailure('rate_limited', 429) } }, async post => {
-      const response = await post('/api/ai/recipe', { request: 'Make soup', context })
+      const response = await post('/api/ai/recipe', { request: 'Make soup', mode: 'new', context })
       expect(response.status).toBe(503)
       expect(response.body.error).toMatch(/busy/i)
       expect(JSON.stringify(response.body)).not.toMatch(/Gemini|429|model/i)

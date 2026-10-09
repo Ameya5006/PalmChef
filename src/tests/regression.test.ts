@@ -13,6 +13,13 @@ describe('existing cooking regression checks', () => {
     expect(splitIntoSteps('Chop the vegetables.\n\nHeat the pan.\n\nSimmer for 15 minutes.')).toEqual(['Chop the vegetables.', 'Heat the pan.', 'Simmer for 15 minutes.'])
     expect(parseDurationToSeconds('Simmer for 1 hour 15 minutes')).toBe(4500)
   })
+  it('shows that page-level PDF splitting can produce oversized imported steps without dropping text', () => {
+    const page = 'Cook carefully. '.repeat(260)
+    const steps = splitIntoSteps(`${page}\n\n${page}\n\n${page}`)
+    expect(steps).toHaveLength(3)
+    expect(steps[0].length).toBeGreaterThan(4000)
+    expect(steps.join('')).toContain(page.trim())
+  })
   it('persists local recipe and session updates through existing Zustand stores', () => {
     const recipe = { id: 'regression', title: 'Soup', sourceType: 'manual' as const, createdAt: 1, steps: [{ id: 'step', text: 'Heat soup.' }] }
     useRecipesStore.setState({ recipes: [] })
