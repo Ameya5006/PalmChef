@@ -28,7 +28,7 @@ const AIAssistantPanel: React.FC = () => {
 
   async function post(path: string, body: unknown, apiBase: string): Promise<AiResponse> {
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 25000)
+    const timeout = window.setTimeout(() => controller.abort(), 65000)
     try {
       const response = await fetch(`${apiBase}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal, cache: 'no-store' })
       return await readAiResponse(response)
@@ -46,7 +46,7 @@ const AIAssistantPanel: React.FC = () => {
     setEntries(old => [...old, { role: 'user', text }])
     try {
       const apiBase = resolveAiApiBase(configuredApiBase, import.meta.env.PROD)
-      let response = await post('/api/ai/turn', { text, context: cookingContext(location.pathname.startsWith('/assistant/')) }, apiBase)
+      let response = await post('/api/ai/turn', { text, context: cookingContext(location.pathname.startsWith('/assistant/'), 'summary') }, apiBase)
       for (let round = 0; round < 3 && response.calls?.length; round++) {
         const results = []
         for (const call of response.calls) {

@@ -3,12 +3,15 @@ import cors from 'cors'
 import crypto from 'node:crypto'
 import { turnSchema, continueSchema, contextSchema } from './schemas.js'
 import { toolDeclarations, validateToolCall } from './tools.js'
-import { createGemini } from './gemini.js'
+import { createGemini, GeminiFailure } from './gemini.js'
 import { aiAllowedOrigin } from './config.js'
 
 const MAX_ROUNDS = 3
 const SESSION_TTL = 5 * 60_000
-const REQUEST_TIMEOUT = 20_000
+const REQUEST_TIMEOUT = 58_000
+const unavailable = error => error instanceof GeminiFailure && error.category === 'rate_limited'
+  ? { status: 503, message: 'AI is busy. Please try again shortly; your cooking controls still work.' }
+  : { status: 502, message: 'AI is unavailable. Your cooking controls still work.' }
 const timeout = async (promise) => {
   let timer
   try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('AI request timed out')), REQUEST_TIMEOUT) })]) }
@@ -78,12 +81,13 @@ export function createAiApp({ gemini = null, allowedOrigin = aiAllowedOrigin() }
     prune()
     if (sessions.size >= 100) return res.status(503).json({ error: 'Assistant is busy. Please retry.' })
     try {
-      const session = { id: crypto.randomUUID(), round: 0, expires: Date.now() + SESSION_TTL, pending: [], contents: [{ role: 'user', parts: [{ text: `User request: ${parsed.data.text}\nCurrent cooking context: ${JSON.stringify(parsed.data.context)}` }] }] }
+      const session = { id: crypto.randomUUID(), round: 0, expires: Date.now() + SESSION_TTL, pending: [], contents: [{ role: 'user', parts: [{ text: `User request: ${parsed.data.text}\nCurrent cooking context: ${JSON.stringify(parsed.data.context)}\nIf activeRecipe is true and recipe details are absent, use a read-only recipe tool before answering questions about ingredients or instructions.` }] }] }
       sessions.set(session.id, session)
       res.json(await advance(session))
     } catch (error) {
       for (const [id, session] of sessions) if (!session.pending.length) sessions.delete(id)
-      res.status(error.message === 'GEMINI_API_KEY is not configured' ? 503 : 502).json({ error: error.message === 'GEMINI_API_KEY is not configured' ? 'AI is not configured on the server.' : 'AI is unavailable. Your cooking controls still work.' })
+      const publicFailure = error.message === 'GEMINI_API_KEY is not configured' ? { status: 503, message: 'AI is not configured on the server.' } : unavailable(error)
+      res.status(publicFailure.status).json({ error: publicFailure.message })
     }
   })
 
@@ -97,14 +101,19 @@ export function createAiApp({ gemini = null, allowedOrigin = aiAllowedOrigin() }
     session.pending = []
     session.contents.push({ role: 'user', parts: parsed.data.results.map(({ id, name, result }) => ({ functionResponse: { id, name, response: result } })) })
     try { res.json(await advance(session)) }
-    catch { sessions.delete(session.id); res.status(502).json({ error: 'AI could not finish the response. Actions already shown in the app remain in effect.' }) }
+    catch (error) { sessions.delete(session.id); res.status(unavailable(error).status).json({ error: 'AI could not finish the response. Actions already shown in the app remain in effect. Please try again shortly.' }) }
   })
 
   app.post('/api/ai/recipe', async (req, res) => {
     const input = req.body
     if (typeof input?.request !== 'string' || input.request.length < 3 || input.request.length > 500 || !contextSchema.safeParse(input.context).success) return res.status(400).json({ error: 'Invalid recipe request.' })
+    if (input.context.activeRecipe && (!input.context.recipe || !Array.isArray(input.context.recipe.steps))) return res.status(400).json({ error: 'Complete recipe context is required to modify the active recipe.' })
     try { res.json({ recipe: await timeout(getGemini().recipe(input.request, input.context)) }) }
-    catch { res.status(502).json({ error: 'Could not generate a valid recipe. Please retry.' }) }
+    catch (error) {
+      if (error instanceof GeminiFailure && error.category === 'invalid_recipe') return res.status(502).json({ error: 'AI returned an invalid recipe twice. Please retry or simplify the request.' })
+      const publicFailure = unavailable(error)
+      res.status(publicFailure.status).json({ error: publicFailure.status === 503 ? 'Recipe AI is busy. Please retry shortly.' : 'Recipe AI is unavailable. Please retry shortly.' })
+    }
   })
 
   app.use((error, req, res, next) => {

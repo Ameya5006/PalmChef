@@ -22,11 +22,12 @@ function formatDuration(seconds: number): string {
 // Keep these limits aligned with server/ai/schemas.js. Reject an oversized or
 // malformed imported recipe instead of dropping ingredients or instructions.
 const contextSchema = z.object({
+  activeRecipe: z.boolean(),
   recipe: z.object({
     title: z.string().max(120),
     servings: z.number().int().min(1).max(100).optional(),
     ingredients: z.array(ingredientSchema).max(60).optional(),
-    steps: z.array(z.string().max(600)).max(50)
+    steps: z.array(z.string().max(600)).max(50).optional()
   }).strict().nullable(),
   stepIndex: z.number().int().min(0).max(49).nullable(),
   timer: z.object({ remainingSeconds: z.number().int().min(0).max(86400), active: z.boolean(), paused: z.boolean(), label: z.string().max(80) }).strict()
@@ -37,13 +38,14 @@ export function activeRecipe(): Recipe | undefined {
   return useRecipesStore.getState().recipes.find(recipe => recipe.id === id)
 }
 
-export function cookingContext(includeRecipe = true) {
+export function cookingContext(includeRecipe = true, detail: 'full' | 'ingredients' | 'summary' = 'full') {
   useSessionStore.getState().tickTimer()
   const state = useSessionStore.getState()
   const recipe = includeRecipe ? activeRecipe() : undefined
   const remainingSeconds = state.timerActive && state.timerEndsAt ? Math.max(0, Math.ceil((state.timerEndsAt - Date.now()) / 1000)) : state.timerRemaining || 0
   const context = {
-    recipe: recipe ? { title: recipe.title, servings: recipe.servings, ingredients: recipe.ingredients, steps: recipe.steps.map(step => step.text) } : null,
+    activeRecipe: Boolean(recipe),
+    recipe: recipe && detail !== 'summary' ? { title: recipe.title, servings: recipe.servings, ingredients: recipe.ingredients, ...(detail === 'full' ? { steps: recipe.steps.map(step => step.text) } : {}) } : null,
     stepIndex: recipe?.steps.length ? Math.min(state.currentStep, recipe.steps.length - 1) : null,
     timer: { remainingSeconds, active: state.timerActive, paused: state.timerPaused, label: state.timerLabel || '' }
   }
@@ -84,7 +86,7 @@ export async function executeTool(call: ToolCall, apiBase = '', inCookingSession
     }
     case 'pause_timer': {
       if (!recipe) return fail('Open a recipe to use a cooking timer')
-      if (!state.timerActive || cookingContext(inCookingSession).timer.remainingSeconds <= 0) return fail('No running timer')
+      if (!state.timerActive || cookingContext(inCookingSession, 'summary').timer.remainingSeconds <= 0) return fail('No running timer')
       state.pauseTimer()
       return { result: { success: true, remainingSeconds: useSessionStore.getState().timerRemaining }, status: 'Timer paused' }
     }
@@ -95,9 +97,13 @@ export async function executeTool(call: ToolCall, apiBase = '', inCookingSession
       return { result: { success: true }, status: 'Timer resumed' }
     }
     case 'get_current_recipe':
-      return recipe ? { result: { success: true, recipe: cookingContext(inCookingSession).recipe }, status: 'Recipe retrieved' } : fail('No active recipe')
+      if (!recipe) return fail('No active recipe')
+      try { return { result: { success: true, recipe: cookingContext(inCookingSession, 'full').recipe }, status: 'Recipe retrieved' } }
+      catch { return fail('This recipe exceeds the AI context limits. Shorten its ingredients or instructions to use full-recipe questions.') }
     case 'get_current_step':
-      return recipe?.steps[state.currentStep] ? { result: { success: true, stepNumber: state.currentStep + 1, instruction: recipe.steps[state.currentStep].text }, status: `Viewing step ${state.currentStep + 1}` } : fail('No active step')
+      if (!recipe?.steps[state.currentStep]) return fail('No active step')
+      if (!z.string().max(600).safeParse(recipe.steps[state.currentStep].text).success) return fail('This instruction exceeds the AI context limits. Shorten it before asking about this step.')
+      return { result: { success: true, stepNumber: state.currentStep + 1, instruction: recipe.steps[state.currentStep].text }, status: `Viewing step ${state.currentStep + 1}` }
     case 'next_step':
       if (!recipe) return fail('No active recipe')
       if (state.currentStep >= recipe.steps.length - 1) return fail('Already at the last step')
@@ -118,25 +124,35 @@ export async function executeTool(call: ToolCall, apiBase = '', inCookingSession
       return { result: { success: true, instruction: step.text }, status: 'Instruction spoken' }
     }
     case 'get_ingredients':
-      return recipe?.ingredients?.length ? { result: { success: true, ingredients: recipe.ingredients, servings: recipe.servings }, status: 'Ingredients retrieved' } : fail('This recipe has no structured ingredients')
+      if (!recipe?.ingredients?.length) return fail('This recipe has no structured ingredients')
+      try { return { result: { success: true, ingredients: cookingContext(inCookingSession, 'ingredients').recipe?.ingredients, servings: recipe.servings }, status: 'Ingredients retrieved' } }
+      catch { return fail('This ingredient list exceeds the AI context limits. Shorten it before asking about ingredients.') }
     case 'scale_recipe': {
       if (!recipe?.ingredients?.length || !recipe.servings) return fail('This recipe has no scalable ingredient list')
       const factor = args.servings / recipe.servings
       const preview: GeneratedRecipe = { title: `${recipe.title} (${args.servings} servings)`, description: recipe.description || 'Adjusted serving preview; check ingredient amounts and cooking times.', servings: args.servings, prepMinutes: recipe.prepMinutes || 0, cookMinutes: recipe.cookMinutes || 0, ingredients: recipe.ingredients.map(item => ({ ...item, quantity: Number((item.quantity * factor).toPrecision(4)) })), steps: recipe.steps.map(step => ({ text: step.text, timerSeconds: step.timer?.seconds })) }
       if (!generatedRecipeSchema.safeParse(preview).success) return fail('This recipe cannot be scaled automatically')
       const warning = 'Review spices, leavening, pan size, temperature and cooking times; these may not scale linearly.'
-      return { result: { success: true, proposedRecipe: preview, warning, saved: false }, status: 'Scaled recipe ready for review', proposal: { recipe: preview, warning } }
+      return { result: { success: true, previewReady: true, warning, saved: false }, status: 'Scaled recipe ready for review', proposal: { recipe: preview, warning } }
     }
     case 'substitute_ingredient':
       if (!recipe) return fail('No active recipe')
-      return { result: { success: true, ingredient: args.ingredient, constraint: args.constraint, recipe: cookingContext(inCookingSession).recipe, instruction: 'Suggest a context-aware replacement with quantities and caveats. Do not claim the recipe was changed.' }, status: 'Substitution context prepared' }
+      try { return { result: { success: true, ingredient: args.ingredient, constraint: args.constraint, recipe: cookingContext(inCookingSession, 'ingredients').recipe, instruction: 'Suggest a context-aware replacement with quantities and caveats. Do not claim the recipe was changed.' }, status: 'Substitution context prepared' } }
+      catch { return fail('This ingredient list exceeds the AI context limits. Shorten it before asking for substitutions.') }
     case 'generate_recipe': {
-      const response = await fetch(`${apiBase}/api/ai/recipe`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request: args.request, context: cookingContext(inCookingSession) }), signal: AbortSignal.timeout(25000), cache: 'no-store' })
-      if (!response.ok) return fail('Recipe generation failed')
+      let context
+      try { context = cookingContext(inCookingSession, 'full') }
+      catch { return fail('This recipe exceeds the AI context limits. Shorten its ingredients or instructions before generating a modified recipe.') }
+      const response = await fetch(`${apiBase}/api/ai/recipe`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request: args.request, context }), signal: AbortSignal.timeout(65000), cache: 'no-store' })
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        const safeErrors = ['AI returned an invalid recipe twice. Please retry or simplify the request.', 'Recipe AI is busy. Please retry shortly.', 'Recipe AI is unavailable. Please retry shortly.']
+        return fail(safeErrors.includes(body?.error) ? body.error : 'Recipe generation failed')
+      }
       const body = await response.json()
       const validated = generatedRecipeSchema.safeParse(body.recipe)
       if (!validated.success) return fail('Generated recipe was invalid')
-      return { result: { success: true, proposedRecipe: validated.data, saved: false }, status: 'Recipe ready for review', proposal: { recipe: validated.data } }
+      return { result: { success: true, previewReady: true, saved: false }, status: 'Recipe ready for review', proposal: { recipe: validated.data } }
     }
     default: return fail('Unsupported tool')
   }

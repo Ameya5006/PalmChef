@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { createAiApp } from './app.js'
 import { recipeSchema } from './schemas.js'
+import { GeminiFailure } from './gemini.js'
 import { toolDeclarations, validateToolCall } from './tools.js'
 
 async function withServer(gemini, fn) {
@@ -125,6 +126,21 @@ describe('Gemini request and tool protocol', () => {
       const response = await post('/api/ai/recipe', { request: 'Make soup', context })
       expect(response.status).toBe(502)
       expect(response.body.error).not.toContain('Zod')
+    })
+  })
+  it('requires complete active-recipe context for recipe modification', async () => {
+    await withServer({ recipe: async () => { throw Error('must not generate') } }, async post => {
+      const response = await post('/api/ai/recipe', { request: 'Modify this soup', context: { ...context, activeRecipe: true, recipe: null } })
+      expect(response.status).toBe(400)
+      expect(response.body.error).toMatch(/Complete recipe context/)
+    })
+  })
+  it('returns a sanitized busy error when primary and fallback are rate limited', async () => {
+    await withServer({ recipe: async () => { throw new GeminiFailure('rate_limited', 429) } }, async post => {
+      const response = await post('/api/ai/recipe', { request: 'Make soup', context })
+      expect(response.status).toBe(503)
+      expect(response.body.error).toMatch(/busy/i)
+      expect(JSON.stringify(response.body)).not.toMatch(/Gemini|429|model/i)
     })
   })
 })

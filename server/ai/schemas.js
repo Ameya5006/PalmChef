@@ -12,6 +12,7 @@ export const recipeSchema = z.object({
 }).strict()
 
 export const contextSchema = z.object({
+  activeRecipe: z.boolean().optional(),
   recipe: z.object({ title: z.string().max(120), servings: z.number().int().min(1).max(100).optional(), ingredients: z.array(ingredientSchema).max(60).optional(), steps: z.array(z.string().max(600)).max(50) }).strict().nullable(),
   stepIndex: z.number().int().min(0).max(49).nullable(),
   timer: z.object({ remainingSeconds: z.number().int().min(0).max(86400), active: z.boolean(), paused: z.boolean(), label: z.string().max(80) }).strict()
